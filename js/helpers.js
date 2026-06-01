@@ -63,7 +63,7 @@ function _dispatch(path, isBack = false) {
     }
     if (ok) { _params = { ..._params, ...params }; _routes[pattern]({ back: isBack }); return; }
   }
-  navigate('/discover');
+console.log("Route not found:", path);
 }
 
 /* ═══════════ UTILS ═══════════ */

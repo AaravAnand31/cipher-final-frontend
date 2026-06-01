@@ -12,9 +12,13 @@
   <link rel="stylesheet" href="css/style.css" />
 </head>
 <body>
+
   <div id="app"></div>
   <div id="toast-container"></div>
   <div id="sheet-container"></div>
-  <script type="module" src="js/app.js"></script>
+
+<!-- FIX: was loading main.js directly; must load app.js so the router boots correctly -->
+<script type="module" src="js/app.js"></script>
+
 </body>
 </html>

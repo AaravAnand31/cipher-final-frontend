@@ -6,6 +6,10 @@ const SVGs = {
     <circle cx="13" cy="13" r="11" stroke="currentColor" stroke-width="1.7"/>
     <path d="M17 9l-3 7-4-4 7-3z" fill="currentColor"/>
   </svg>`,
+  search: `<svg width="26" height="26" viewBox="0 0 26 26" fill="none">
+    <circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="1.7"/>
+    <path d="M16.5 16.5L22 22" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+  </svg>`,
   chats: `<svg width="26" height="26" viewBox="0 0 26 26" fill="none">
     <path d="M4 5h18a1 1 0 011 1v11a1 1 0 01-1 1H8l-5 4V6a1 1 0 011-1z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
   </svg>`,
@@ -23,6 +27,7 @@ export function tabBarHTML(active) {
   const { pendingCount } = getState();
   const tabs = [
     { id: 'discover',  label: 'Discover', path: '/discover' },
+    { id: 'search',    label: 'Search',   path: '/search'  },
     { id: 'chats',     label: 'Chats',    path: '/chats'   },
     { id: 'requests',  label: 'Requests', path: '/requests'},
     { id: 'profile',   label: 'Profile',  path: '/profile' },

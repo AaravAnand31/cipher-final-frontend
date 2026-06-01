@@ -2,7 +2,7 @@
 import {
   navigate, back, getState, setState,
   avatarHTML, tagHTML, toast, confirm,
-  DUMMY_USER, LOOKING, YEARS, OPEN_TO,
+  DUMMY_USER, LOOKING, YEARS, OPEN_TO, DEPTS,
 } from '../helpers.js';
 import { tabBarHTML, bindTabs } from './tabs.js';
 
@@ -10,7 +10,13 @@ import { tabBarHTML, bindTabs } from './tabs.js';
    MY PROFILE
 ══════════════════════════════════════════════════ */
 export function renderProfile() {
-  const p = getState().currentUser || DUMMY_USER;
+  // Merge localStorage photo overrides so edits show immediately
+  const _base = getState().currentUser || DUMMY_USER;
+  const p = {
+    ..._base,
+    photoURL: localStorage.getItem('cipher_photoURL') || _base.photoURL || '',
+    coverURL: localStorage.getItem('cipher_coverURL') || _base.coverURL || '',
+  };
   const tags = (p.lookingFor||[]).map(tagHTML).join('');
   const interests = (p.interests||[]).map(i =>
     `<span class="interest-pill">${i}</span>`).join('');
@@ -202,7 +208,8 @@ export function renderSettings() {
   document.querySelectorAll('[data-action]').forEach(el =>
     el.addEventListener('click', () => {
       const a = el.dataset.action;
-      if (a === 'blocked') navigate('/blocked');
+      if (a === 'blocked')  navigate('/blocked');
+      else if (a === 'edit') navigate('/edit-profile');
       else if (a === 'about') toast('Cipher v1.0 · Built for Christ (Deemed to be University) Ghaziabad 🎓');
       else toast(`${el.querySelector('.list-row-label').textContent} — coming soon!`);
     })
@@ -215,6 +222,273 @@ export function renderSettings() {
       navigate('/login');
     }
   });
+}
+
+/* ══════════════════════════════════════════════════
+   EDIT PROFILE
+══════════════════════════════════════════════════ */
+export function renderEditProfile() {
+  const p = getState().currentUser || DUMMY_USER;
+
+  // Load persisted photo overrides
+  const storedPhoto = localStorage.getItem('cipher_photoURL') || p.photoURL || '';
+  const storedCover = localStorage.getItem('cipher_coverURL') || p.coverURL || '';
+
+  // Working copies (updated as user picks files / edits)
+  let draftPhoto = storedPhoto;
+  let draftCover = storedCover;
+
+  const initials = p.name.split(' ').map(w => w[0]).join('').slice(0,2).toUpperCase();
+
+  function avatarPreviewHTML(url) {
+    return url
+      ? `<img id="avatar-img" src="${url}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:50%" />`
+      : `<span id="avatar-initials" style="font-size:30px;font-weight:600;color:var(--accent)">${initials}</span>`;
+  }
+
+  function coverPreviewStyle(url) {
+    return url
+      ? `background:url('${url}') center/cover no-repeat`
+      : `background:linear-gradient(145deg,#e8f5e9,#c8e6c9)`;
+  }
+
+  const interests = (p.interests || []);
+  const ALL_INTERESTS = ['Chess','Coding','Badminton','Music','Design','Photography','Gaming',
+    'Reading','Travel','Fitness','Art','Writing','Movies','Cooking','Dance','Podcasts'];
+
+  document.getElementById('app').innerHTML = `
+    <div class="screen screen-enter" id="edit-screen">
+      <div class="nav-bar">
+        <div class="nav-left">
+          <button class="nav-back" id="back-btn">
+            <svg viewBox="0 0 10 17" fill="none" style="width:10px;height:17px">
+              <path d="M9 1L1.5 8.5L9 16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            Settings
+          </button>
+        </div>
+        <div class="nav-center"><span class="nav-title-inline">Edit Profile</span></div>
+        <div class="nav-right">
+          <button class="nav-back" id="save-btn" style="font-weight:600;color:var(--accent)">Save</button>
+        </div>
+      </div>
+
+      <div class="screen-body" style="background:var(--bg-secondary);padding-bottom:40px">
+
+        <!-- ── Photo Section ─────────────────────────────── -->
+        <div style="background:var(--bg-card);margin-bottom:24px">
+
+          <!-- Cover photo -->
+          <div id="cover-preview" style="height:110px;position:relative;cursor:pointer;${coverPreviewStyle(draftCover)}" id="cover-tap">
+            <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.25);border-bottom:0.5px solid var(--separator)">
+              <div style="background:rgba(0,0,0,0.45);backdrop-filter:blur(6px);border-radius:20px;padding:7px 14px;display:flex;align-items:center;gap:6px">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+                  <circle cx="12" cy="13" r="4"/>
+                </svg>
+                <span style="color:#fff;font-size:13px;font-weight:500">Change Cover</span>
+              </div>
+            </div>
+          </div>
+          <input type="file" id="cover-input" accept="image/*" style="display:none" />
+
+          <!-- Avatar overlay -->
+          <div style="position:relative;margin-top:-38px;padding:0 20px 16px;display:flex;align-items:flex-end;justify-content:space-between">
+            <div style="position:relative;display:inline-block">
+              <div id="avatar-preview" style="width:76px;height:76px;border-radius:50%;border:3px solid var(--bg-card);background:var(--accent-bg);display:flex;align-items:center;justify-content:center;overflow:hidden;position:relative;box-shadow:var(--shadow-md);cursor:pointer">
+                ${avatarPreviewHTML(draftPhoto)}
+              </div>
+              <!-- Camera badge -->
+              <div id="photo-tap" style="position:absolute;bottom:0;right:0;width:26px;height:26px;border-radius:50%;background:var(--accent);border:2px solid var(--bg-card);display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:var(--shadow-sm)">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+                  <circle cx="12" cy="13" r="4"/>
+                </svg>
+              </div>
+            </div>
+            <div style="font-size:13px;color:var(--accent);font-weight:500;margin-bottom:4px;cursor:pointer" id="remove-photo-btn">
+              ${draftPhoto ? 'Remove photo' : ''}
+            </div>
+          </div>
+          <input type="file" id="photo-input" accept="image/*" style="display:none" />
+        </div>
+
+        <!-- ── Basic Info ─────────────────────────────────── -->
+        <div class="form-label-above" style="padding:0 20px">Basic Info</div>
+        <div class="form-section" style="margin:8px 16px 0">
+          <div class="form-row">
+            <div class="form-row-label">Name</div>
+            <input id="field-name" type="text" value="${p.name}" placeholder="Your name" />
+          </div>
+          <div class="form-row">
+            <div class="form-row-label">Year</div>
+            <select id="field-year" style="flex:1;font-size:15px;color:var(--label-primary);padding:12px 0;background:none;border:none;outline:none;font-family:var(--font);appearance:none;-webkit-appearance:none;cursor:pointer">
+              ${YEARS.map(y => `<option value="${y}" ${p.year===y?'selected':''}>${y}</option>`).join('')}
+            </select>
+          </div>
+          <div class="form-row" style="border-bottom:none">
+            <div class="form-row-label">Department</div>
+            <select id="field-dept" style="flex:1;font-size:15px;color:var(--label-primary);padding:12px 0;background:none;border:none;outline:none;font-family:var(--font);appearance:none;-webkit-appearance:none;cursor:pointer">
+              ${DEPTS.map(d => `<option value="${d}" ${p.department===d?'selected':''}>${d}</option>`).join('')}
+            </select>
+          </div>
+        </div>
+
+        <!-- ── Bio ───────────────────────────────────────── -->
+        <div class="form-label-above" style="padding:0 20px">Bio</div>
+        <div class="form-section" style="margin:8px 16px 0">
+          <div class="form-row" style="border-bottom:none;align-items:flex-start">
+            <textarea id="field-bio" rows="3" placeholder="Tell people who you are…" style="flex:1;font-size:15px;color:var(--label-primary);padding:12px 0;line-height:1.5;resize:none">${p.bio || ''}</textarea>
+          </div>
+        </div>
+        <div class="form-hint" style="padding:0 20px">Max 200 characters</div>
+
+        <!-- ── Icebreaker ─────────────────────────────────── -->
+        <div class="form-label-above" style="padding:0 20px">Icebreaker</div>
+        <div class="form-section" style="margin:8px 16px 0">
+          <div class="form-row" style="border-bottom:none;align-items:flex-start">
+            <textarea id="field-ice" rows="2" placeholder="Something fun or memorable about you…" style="flex:1;font-size:15px;color:var(--label-primary);padding:12px 0;line-height:1.5;resize:none">${p.icebreaker || ''}</textarea>
+          </div>
+        </div>
+
+        <!-- ── Interests ──────────────────────────────────── -->
+        <div class="form-label-above" style="padding:0 20px">Interests</div>
+        <div style="padding:0 16px 4px">
+          <div class="chip-wrap" id="interest-chips">
+            ${ALL_INTERESTS.map(tag => `
+              <div class="chip ${interests.includes(tag) ? 'selected' : ''}" data-interest="${tag}">${tag}</div>
+            `).join('')}
+          </div>
+        </div>
+
+        <!-- ── Looking For ────────────────────────────────── -->
+        <div class="form-label-above" style="padding:0 20px">Looking For</div>
+        <div style="padding:0 16px 4px">
+          <div class="chip-wrap" id="looking-chips">
+            ${LOOKING.map(tag => `
+              <div class="chip ${(p.lookingFor||[]).includes(tag) ? 'selected' : ''}" data-looking="${tag}">${tag}</div>
+            `).join('')}
+          </div>
+        </div>
+
+        <div style="padding:24px 16px 0">
+          <button class="btn btn-primary" id="save-main-btn">Save Changes</button>
+        </div>
+      </div>
+    </div>`;
+
+  // ── Back ──────────────────────────────────────────────
+  document.getElementById('back-btn').addEventListener('click', back);
+
+  // ── Profile photo picker ──────────────────────────────
+  const photoInput = document.getElementById('photo-input');
+  const photoTap   = document.getElementById('photo-tap');
+  const avatarPreview = document.getElementById('avatar-preview');
+
+  function triggerPhotoPicker() { photoInput.click(); }
+  photoTap.addEventListener('click', triggerPhotoPicker);
+  avatarPreview.addEventListener('click', triggerPhotoPicker);
+
+  photoInput.addEventListener('change', () => {
+    const file = photoInput.files[0];
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) { toast('Image too large (max 5 MB)', 'error'); return; }
+    const reader = new FileReader();
+    reader.onload = e => {
+      draftPhoto = e.target.result;
+      // Update avatar preview live
+      avatarPreview.innerHTML = `<img src="${draftPhoto}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:50%" />`;
+      const rmBtn = document.getElementById('remove-photo-btn');
+      if (rmBtn) rmBtn.textContent = 'Remove photo';
+      toast('Photo selected ✓', 'success');
+    };
+    reader.readAsDataURL(file);
+  });
+
+  // Remove photo
+  document.getElementById('remove-photo-btn').addEventListener('click', () => {
+    if (!draftPhoto) return;
+    draftPhoto = '';
+    avatarPreview.innerHTML = `<span style="font-size:30px;font-weight:600;color:var(--accent)">${initials}</span>`;
+    document.getElementById('remove-photo-btn').textContent = '';
+    toast('Photo removed');
+  });
+
+  // ── Cover photo picker ────────────────────────────────
+  const coverInput = document.getElementById('cover-input');
+  const coverPreview = document.getElementById('cover-preview');
+
+  coverPreview.addEventListener('click', () => coverInput.click());
+
+  coverInput.addEventListener('change', () => {
+    const file = coverInput.files[0];
+    if (!file) return;
+    if (file.size > 8 * 1024 * 1024) { toast('Image too large (max 8 MB)', 'error'); return; }
+    const reader = new FileReader();
+    reader.onload = e => {
+      draftCover = e.target.result;
+      coverPreview.style.background = `url('${draftCover}') center/cover no-repeat`;
+      toast('Cover updated ✓', 'success');
+    };
+    reader.readAsDataURL(file);
+  });
+
+  // ── Interest chip toggles ─────────────────────────────
+  document.getElementById('interest-chips').addEventListener('click', e => {
+    const chip = e.target.closest('[data-interest]');
+    if (!chip) return;
+    chip.classList.toggle('selected');
+  });
+
+  // ── Looking-for chip toggles ──────────────────────────
+  document.getElementById('looking-chips').addEventListener('click', e => {
+    const chip = e.target.closest('[data-looking]');
+    if (!chip) return;
+    chip.classList.toggle('selected');
+  });
+
+  // ── Save ──────────────────────────────────────────────
+  function doSave() {
+    const name = document.getElementById('field-name').value.trim();
+    if (!name) { toast('Name cannot be empty', 'error'); return; }
+
+    const bio       = document.getElementById('field-bio').value.trim().slice(0, 200);
+    const icebreaker= document.getElementById('field-ice').value.trim();
+    const year      = document.getElementById('field-year').value;
+    const department= document.getElementById('field-dept').value;
+
+    const selInterests = [...document.querySelectorAll('#interest-chips [data-interest].selected')].map(c => c.dataset.interest);
+    const selLooking   = [...document.querySelectorAll('#looking-chips [data-looking].selected')].map(c => c.dataset.looking);
+
+    // Persist photos in localStorage
+    if (draftPhoto) localStorage.setItem('cipher_photoURL', draftPhoto);
+    else            localStorage.removeItem('cipher_photoURL');
+    if (draftCover) localStorage.setItem('cipher_coverURL', draftCover);
+    else            localStorage.removeItem('cipher_coverURL');
+
+    // Merge into app state
+    const existing = getState().currentUser || DUMMY_USER;
+    setState({
+      currentUser: {
+        ...existing,
+        name,
+        bio,
+        icebreaker,
+        year,
+        department,
+        photoURL:  draftPhoto,
+        coverURL:  draftCover,
+        interests: selInterests,
+        lookingFor:selLooking,
+      }
+    });
+
+    toast('Profile updated 🎉', 'success');
+    back();
+  }
+
+  document.getElementById('save-btn').addEventListener('click', doSave);
+  document.getElementById('save-main-btn').addEventListener('click', doSave);
 }
 
 /* ══════════════════════════════════════════════════
