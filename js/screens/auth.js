@@ -20,11 +20,11 @@ export function renderLogin() {
       <div class="form-section" style="width:100%;max-width:380px;margin-bottom:16px">
         <div class="form-row">
           <div class="form-row-label">Email</div>
-          <input id="loginEmail" type="email" placeholder="you@christuniversity.in" />
+          <input id="loginEmail" type="email" placeholder="you@christuniversity.in" autocomplete="email" />
         </div>
         <div class="form-row" style="border-bottom:none">
           <div class="form-row-label">Password</div>
-          <input id="loginPassword" type="password" placeholder="••••••••" />
+          <input id="loginPassword" type="password" placeholder="••••••••" autocomplete="current-password" />
         </div>
       </div>
 
@@ -37,7 +37,7 @@ export function renderLogin() {
     </div>`;
 
   document.getElementById('loginBtn').addEventListener('click', loginUser);
-  document.getElementById('loginEmail').addEventListener('keydown',    e => { if (e.key === 'Enter') document.getElementById('loginPassword').focus(); });
+  document.getElementById('loginEmail').addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('loginPassword').focus(); });
   document.getElementById('loginPassword').addEventListener('keydown', e => { if (e.key === 'Enter') loginUser(); });
   document.getElementById('goRegister').addEventListener('click', () => navigate('/register'));
 }
@@ -60,15 +60,15 @@ export function renderRegister() {
       <div class="form-section" style="width:100%;max-width:380px;margin-bottom:16px">
         <div class="form-row">
           <div class="form-row-label">Full name</div>
-          <input id="regName" type="text" placeholder="Aarav Anand" />
+          <input id="regName" type="text" placeholder="Aarav Anand" autocomplete="name" />
         </div>
         <div class="form-row">
           <div class="form-row-label">Email</div>
-          <input id="regEmail" type="email" placeholder="you@christuniversity.in" />
+          <input id="regEmail" type="email" placeholder="you@christuniversity.in" autocomplete="email" />
         </div>
         <div class="form-row" style="border-bottom:none">
           <div class="form-row-label">Password</div>
-          <input id="regPassword" type="password" placeholder="Min. 6 characters" />
+          <input id="regPassword" type="password" placeholder="Min. 6 characters" autocomplete="new-password" />
         </div>
       </div>
 
@@ -85,6 +85,28 @@ export function renderRegister() {
 }
 
 /* ══════════════════════════════════════════════════
+   HELPER — map DB user → frontend state
+   Called on both register (auto-login) and login
+══════════════════════════════════════════════════ */
+function dbUserToState(dbUser) {
+  return {
+    uid:         dbUser._id        || '',
+    name:        dbUser.username   || '',
+    email:       dbUser.email      || '',
+    year:        dbUser.year       || '',
+    department:  dbUser.department || '',
+    bio:         dbUser.bio        || '',
+    icebreaker:  dbUser.icebreaker || '',
+    interests:   dbUser.interests  || [],
+    lookingFor:  dbUser.lookingFor || [],
+    openTo:      dbUser.openTo     || ['Everyone'],
+    photoURL:    dbUser.photoURL   || '',   // base64 from DB
+    coverURL:    dbUser.coverURL   || '',   // base64 from DB
+    profileDone: dbUser.profileDone || false,
+  };
+}
+
+/* ══════════════════════════════════════════════════
    ACTIONS
 ══════════════════════════════════════════════════ */
 async function registerUser() {
@@ -93,42 +115,32 @@ async function registerUser() {
   const password = document.getElementById('regPassword').value;
 
   if (!name || !email || !password) { toast('Please fill in all fields', 'error'); return; }
-  if (password.length < 6)          { toast('Password must be at least 6 characters', 'error'); return; }
+  if (password.length < 6) { toast('Password must be at least 6 characters', 'error'); return; }
 
   const btn = document.getElementById('registerBtn');
   btn.disabled = true; btn.textContent = 'Creating account…';
 
   try {
-    // Step 1: Register
-    const res = await fetch(`${API_URL}/auth/register`, {
+    // 1 — Register
+    const r1 = await fetch(`${API_URL}/auth/register`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ username: name, email, password }),
     });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.message || 'Registration failed');
+    const d1 = await r1.json();
+    if (!r1.ok) throw new Error(d1.message || 'Registration failed');
 
-    // Step 2: Auto-login right after
-    const loginRes  = await fetch(`${API_URL}/auth/login`, {
+    // 2 — Auto-login immediately after
+    const r2 = await fetch(`${API_URL}/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password }),
     });
-    const loginData = await loginRes.json();
-    if (!loginRes.ok) throw new Error('Registered! Please sign in.');
+    const d2 = await r2.json();
+    if (!r2.ok) throw new Error('Registered! Please sign in.');
 
-    localStorage.setItem('token', loginData.token);
-    const dbUser = loginData.user || {};
-    setState({
-      currentUser: {
-        uid:         dbUser._id  || '',
-        name:        dbUser.username || name,
-        email:       dbUser.email    || email,
-        year: '', department: '', bio: '', icebreaker: '',
-        interests: [], lookingFor: [], openTo: ['Everyone'],
-        photoURL: '', coverURL: '', profileDone: false,
-      }
-    });
+    localStorage.setItem('token', d2.token);
+    setState({ currentUser: dbUserToState(d2.user || {}) });
 
     toast('Account created! Now set up your profile 🎉', 'success');
     navigate('/setup');
@@ -159,29 +171,15 @@ async function loginUser() {
     if (!res.ok) throw new Error(data.message || 'Login failed');
 
     localStorage.setItem('token', data.token);
-    const dbUser = data.user || {};
 
-    setState({
-      currentUser: {
-        uid:        dbUser._id        || '',
-        name:       dbUser.username   || '',
-        email:      dbUser.email      || email,
-        year:       dbUser.year       || '',
-        department: dbUser.department || '',
-        bio:        dbUser.bio        || '',
-        icebreaker: dbUser.icebreaker || '',
-        interests:  dbUser.interests  || [],
-        lookingFor: dbUser.lookingFor || [],
-        openTo:     dbUser.openTo     || ['Everyone'],
-        photoURL:   dbUser.photoURL   || '',
-        coverURL:   dbUser.coverURL   || '',
-        profileDone: dbUser.profileDone || false,
-      }
-    });
+    // Map ALL DB fields → state (photos come back as base64 from DB)
+    const user = dbUserToState(data.user || {});
+    setState({ currentUser: user });
 
     toast('Welcome back! 👋', 'success');
-    const needsSetup = !dbUser.year && !dbUser.department;
-    navigate(needsSetup ? '/setup' : '/discover');
+
+    // Use profileDone flag — if true, go to discover. If false, do setup.
+    navigate(user.profileDone ? '/discover' : '/setup');
 
   } catch (err) {
     console.error(err);
