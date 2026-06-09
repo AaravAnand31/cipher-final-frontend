@@ -4,6 +4,6 @@
 // connection routes:  API_URL + "/connections/request"  etc.
 // message routes:     API_URL + "/messages/:id"
 
-const API_URL = "https://cipher-425d.onrender.com";
+const API_URL = "https://cipher-425d.onrender.com/api";
 
 export default API_URL;

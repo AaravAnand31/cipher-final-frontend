@@ -1,7 +1,7 @@
 // js/screens/main.js — Discover · Chats · Chatroom · Requests
 import {
   navigate, back, getParams, getState, setState,
-  avatarHTML, tagHTML, timeAgo, toast, confirm,
+  avatarHTML, avatarWithStatusHTML, tagHTML, timeAgo, lastSeenText, toast, confirm,
   LOOKING, YEARS,
 } from '../helpers.js';
 import { tabBarHTML, bindTabs } from './tabs.js';
@@ -83,16 +83,12 @@ export function renderDiscover() {
 async function fetchUsers() {
   if (_loading || _done) return;
   _loading = true;
-
   try {
     const res = await fetch(`${API_URL}/users/discover?limit=10&skip=${_skip}`, { headers: authHeaders() });
-
     if (res.status === 401) { toast('Session expired — please login again', 'error'); navigate('/login'); return; }
     if (!res.ok) throw new Error('Failed');
-
     const newUsers = await res.json();
     document.getElementById('feed-loader')?.remove();
-
     if (newUsers.length === 0) {
       _done = true;
     } else {
@@ -147,6 +143,7 @@ function renderCards() {
     const name  = u.username || u.name || 'Student';
     const tags  = (u.lookingFor||[]).map(tagHTML).join('');
     const pills = (u.interests||[]).slice(0,4).map(i => `<span class="interest-pill">${i}</span>`).join('');
+    const isOnline = u.isOnline || (getState().onlineUsers || new Set()).has(u._id?.toString());
     const card  = document.createElement('div');
     card.className = 'discover-card';
     card.dataset.uid = u._id;
@@ -156,7 +153,10 @@ function renderCards() {
         ${u.year ? `<div class="card-badge">${u.year}</div>` : ''}
       </div>
       <div class="card-avatar-row">
-        <div class="card-avatar-border">${avatarHTML(name, u.photoURL, 62)}</div>
+        <div class="card-avatar-border" style="position:relative">
+          ${avatarHTML(name, u.photoURL, 62)}
+          ${isOnline ? `<div class="online-dot" style="width:13px;height:13px;border-width:2px"></div>` : ''}
+        </div>
       </div>
       <div class="card-body">
         <div class="card-name">${name}</div>
@@ -260,7 +260,7 @@ function openFilterSheet() {
 
 
 /* ══════════════════════════════════════════════════
-   CHATS — real accepted connections
+   CHATS — with unread badges + online dots
 ══════════════════════════════════════════════════ */
 export async function renderChats() {
   document.getElementById('app').innerHTML = `
@@ -268,7 +268,7 @@ export async function renderChats() {
       <div class="nav-bar">
         <div class="nav-left">
           <div>
-            <div class="nav-title-large">Chats</div>
+            <div class="nav-title-large" id="chats-title">Chats</div>
             <div class="nav-subtitle" id="chats-sub">Loading…</div>
           </div>
         </div>
@@ -282,11 +282,35 @@ export async function renderChats() {
 
   try {
     const res = await fetch(`${API_URL}/connections`, { headers: authHeaders() });
+    if (res.status === 401) { navigate('/login'); return; }
     if (!res.ok) throw new Error('Failed');
     const conns = await res.json();
 
+    // Fetch unread counts for all connections in parallel
+    const unreadMap = {};
+    await Promise.all(conns.map(async c => {
+      try {
+        const r = await fetch(`${API_URL}/messages/${c.connectionId}/unread`, { headers: authHeaders() });
+        if (r.ok) {
+          const d = await r.json();
+          unreadMap[c.connectionId] = d.count || 0;
+        }
+      } catch (_) {}
+    }));
+
+    // Persist unread counts in state (drives tab badge)
+    setState({ unreadCounts: unreadMap });
+
+    const totalUnread = Object.values(unreadMap).reduce((s, n) => s + n, 0);
+
     const sub = document.getElementById('chats-sub');
     sub.textContent = `${conns.length} conversation${conns.length !== 1 ? 's' : ''}`;
+
+    // Update tab title with unread count
+    const titleEl = document.getElementById('chats-title');
+    if (titleEl && totalUnread > 0) {
+      titleEl.textContent = `Chats (${totalUnread})`;
+    }
 
     const body = document.getElementById('chats-body');
     if (!conns.length) {
@@ -304,19 +328,27 @@ export async function renderChats() {
         ${conns.map((c, i) => {
           const u = c.user;
           const name = u.username || u.name || 'Student';
+          const isOnline = u.isOnline || (getState().onlineUsers || new Set()).has(u._id?.toString());
+          const unread = unreadMap[c.connectionId] || 0;
           return `
-            <div class="chat-row" data-chatid="${c.connectionId}" style="${i===conns.length-1?'border-bottom:none':''}">
-              <div style="position:relative">
-                ${avatarHTML(name, u.photoURL, 50)}
-                <div style="position:absolute;bottom:1px;right:1px;width:11px;height:11px;background:#34c759;border-radius:50%;border:2px solid var(--bg-card)"></div>
-              </div>
+            <div class="chat-row" data-chatid="${c.connectionId}"
+              style="${i===conns.length-1?'border-bottom:none':''}">
+              ${avatarWithStatusHTML(name, u.photoURL, 50, isOnline)}
               <div class="chat-info">
                 <div class="chat-name">${name}</div>
-                <div class="chat-preview">${u.department||''} · ${u.year||''}</div>
+                <div class="chat-preview">
+                  ${isOnline
+                    ? '<span class="online-label">● Online</span>'
+                    : (u.lastSeen ? `Last seen ${timeAgo(u.lastSeen)} ago` : `${u.department||''} · ${u.year||''}`)
+                  }
+                </div>
               </div>
               <div class="chat-right">
                 <span class="chat-time">${timeAgo(c.connectedAt)}</span>
-                <span class="chat-arrow">›</span>
+                ${unread > 0
+                  ? `<span class="unread-badge">${unread > 99 ? '99+' : unread}</span>`
+                  : `<span class="chat-arrow">›</span>`
+                }
               </div>
             </div>`;
         }).join('')}
@@ -340,7 +372,7 @@ export async function renderChats() {
 
 
 /* ══════════════════════════════════════════════════
-   CHATROOM — live chat via Socket.io
+   CHATROOM — live chat + read receipts + delete
 ══════════════════════════════════════════════════ */
 let _socket = null;
 
@@ -351,6 +383,7 @@ export function renderChatroom() {
   const u    = chat.otherUser;
   const name = u.username || u.name || 'Student';
   const me   = getState().currentUser;
+  const isOnline = u.isOnline || (getState().onlineUsers || new Set()).has(u._id?.toString());
 
   document.getElementById('app').innerHTML = `
     <div class="screen screen-enter">
@@ -362,10 +395,15 @@ export function renderChatroom() {
             </svg>
             Back
           </button>
-          ${avatarHTML(name, u.photoURL, 36)}
+          <div style="position:relative;flex-shrink:0">
+            ${avatarHTML(name, u.photoURL, 36)}
+            ${isOnline ? `<div class="online-dot" style="width:10px;height:10px;border-width:2px"></div>` : ''}
+          </div>
           <div class="chatroom-info">
             <div class="chatroom-name">${name}</div>
-            <div class="chatroom-sub" id="chat-status">${u.year||''} · ${u.department||''}</div>
+            <div class="chatroom-sub" id="chat-status">
+              ${lastSeenText(isOnline, u.lastSeen)}
+            </div>
           </div>
         </div>
 
@@ -389,17 +427,17 @@ export function renderChatroom() {
     </div>`;
 
   document.getElementById('back-btn').onclick = () => {
-    if (_socket) { _socket.emit('typing', { connectionId: chat.chatId, isTyping: false }); }
+    if (_socket) _socket.emit('typing', { connectionId: chat.chatId, isTyping: false });
     back();
   };
 
-  // Load message history
+  // Load history + mark as seen
   loadHistory(chat.chatId, me);
 
   // Connect socket
-  connectSocket(chat, me, name);
+  connectSocket(chat, me, name, u);
 
-  // Input handling
+  // Input
   const input   = document.getElementById('msg-input');
   const sendBtn = document.getElementById('send-btn');
   let typingTimer = null;
@@ -408,8 +446,6 @@ export function renderChatroom() {
     input.style.height = 'auto';
     input.style.height = Math.min(input.scrollHeight, 120) + 'px';
     sendBtn.disabled = !input.value.trim();
-
-    // Typing indicator
     if (_socket) {
       _socket.emit('typing', { connectionId: chat.chatId, isTyping: true });
       clearTimeout(typingTimer);
@@ -426,13 +462,11 @@ export function renderChatroom() {
   sendBtn.onclick = () => {
     const text = input.value.trim();
     if (!text || !_socket) return;
-
     _socket.emit('send_message', {
       connectionId:  chat.chatId,
       senderUserId:  me?.uid || me?._id || '',
       text,
     });
-
     input.value = ''; input.style.height = 'auto'; sendBtn.disabled = true;
     _socket.emit('typing', { connectionId: chat.chatId, isTyping: false });
   };
@@ -444,26 +478,45 @@ async function loadHistory(connectionId, me) {
     if (!res.ok) throw new Error('Failed');
     const msgs = await res.json();
     document.getElementById('msgs-loader')?.remove();
-    if (msgs.length === 0) {
-      const el = document.getElementById('msgs');
-      if (el) el.innerHTML = `
+
+    const el = document.getElementById('msgs');
+    if (!el) return;
+
+    if (!msgs.length) {
+      el.innerHTML = `
         <div style="text-align:center;padding:60px 16px;color:var(--label-secondary);font-size:14px;line-height:1.6">
           👋 You're connected!<br>Say something to start the conversation.
         </div>`;
     } else {
       msgs.forEach(m => appendMessage(m, me));
     }
+
+    // ── FEATURE #6: Mark all messages as seen when chat opens ──
+    markAsSeen(connectionId);
+
+    // Clear unread count for this chat in state
+    const newUnread = { ...(getState().unreadCounts || {}) };
+    newUnread[connectionId] = 0;
+    setState({ unreadCounts: newUnread });
+
   } catch (err) {
     console.error(err);
     document.getElementById('msgs-loader')?.remove();
   }
 }
 
-function connectSocket(chat, me, otherName) {
-  if (!window.io) { console.warn('Socket.io not loaded'); return; }
+async function markAsSeen(connectionId) {
+  try {
+    await fetch(`${API_URL}/messages/${connectionId}/seen`, {
+      method: 'POST',
+      headers: authHeaders(),
+    });
+  } catch (_) {}
+}
 
-  // Disconnect old socket if any
-  if (_socket) { _socket.disconnect(); }
+function connectSocket(chat, me, otherName, otherUser) {
+  if (!window.io) { console.warn('Socket.io not loaded'); return; }
+  if (_socket) _socket.disconnect();
 
   _socket = window.io('https://cipher-425d.onrender.com');
 
@@ -474,21 +527,71 @@ function connectSocket(chat, me, otherName) {
 
   _socket.on('new_message', msg => {
     document.getElementById('msgs-loader')?.remove();
-    // Remove the "say something" placeholder if it exists
-    const placeholder = document.querySelector('#msgs div[style*="You\'re connected"]');
-    placeholder?.remove();
+    document.querySelector('#msgs div[style*="You\'re connected"]')?.remove();
     appendMessage(msg, me);
+
+    // Auto-mark as seen if we're in the chatroom
+    markAsSeen(chat.chatId);
+    const newUnread = { ...(getState().unreadCounts || {}) };
+    newUnread[chat.chatId] = 0;
+    setState({ unreadCounts: newUnread });
+  });
+
+  // ── FEATURE #6: Update sent tick to double-tick when seen ──
+  _socket.on('messages_seen', ({ connectionId, seenAt }) => {
+    if (connectionId !== chat.chatId) return;
+    // Update all ✓ ticks to ✓✓ for messages I sent
+    document.querySelectorAll('.msg-receipt.sent').forEach(el => {
+      el.innerHTML = `<span class="receipt-seen" title="${new Date(seenAt).toLocaleTimeString()}">✓✓</span>`;
+      el.classList.remove('sent');
+    });
+  });
+
+  // ── FEATURE #3: Online/offline status in chatroom header ──
+  _socket.on('user_status_change', ({ userId, isOnline, lastSeen }) => {
+    const otherId = otherUser?._id?.toString() || otherUser?.uid;
+    if (userId !== otherId) return;
+    const sub = document.getElementById('chat-status');
+    if (!sub) return;
+    sub.innerHTML = lastSeenText(isOnline, lastSeen);
+    // Update dot
+    const dot = document.querySelector('.chatroom-header .online-dot');
+    if (isOnline && !dot) {
+      const avatarWrap = document.querySelector('.chatroom-header [style*="position:relative"]');
+      if (avatarWrap) {
+        const newDot = document.createElement('div');
+        newDot.className = 'online-dot';
+        newDot.style.cssText = 'width:10px;height:10px;border-width:2px';
+        avatarWrap.appendChild(newDot);
+      }
+    } else if (!isOnline && dot) {
+      dot.remove();
+    }
   });
 
   _socket.on('user_typing', ({ userId, isTyping }) => {
     const sub = document.getElementById('chat-status');
     if (!sub) return;
-    if (isTyping && userId !== (me?.uid || me?._id)) {
-      sub.textContent = `${otherName} is typing…`;
-      sub.style.color = 'var(--accent)';
+    const otherId = otherUser?._id?.toString() || otherUser?.uid;
+    if (userId !== otherId) return;
+    if (isTyping) {
+      sub.innerHTML = `<span style="color:var(--accent)">typing…</span>`;
     } else {
-      sub.textContent = `${chat.otherUser.year||''} · ${chat.otherUser.department||''}`;
-      sub.style.color = '';
+      const isOnline = (getState().onlineUsers || new Set()).has(userId);
+      sub.innerHTML = lastSeenText(isOnline, otherUser?.lastSeen);
+    }
+  });
+
+  // ── FEATURE #7: Message deleted notification ──
+  _socket.on('message_deleted', ({ messageId }) => {
+    const el = document.querySelector(`[data-msg-id="${messageId}"]`);
+    if (el) {
+      const bubble = el.querySelector('.bubble');
+      if (bubble) {
+        bubble.classList.add('deleted');
+        bubble.textContent = 'This message was deleted';
+      }
+      el.querySelector('.msg-actions')?.remove();
     }
   });
 
@@ -496,25 +599,75 @@ function connectSocket(chat, me, otherName) {
 }
 
 function appendMessage(m, me) {
-  const el   = document.getElementById('msgs');
+  const el = document.getElementById('msgs');
   if (!el) return;
 
-  const myId = me?.uid || me?._id || '';
-  const senderId = m.senderUser?._id || m.senderUser;
-  const isMe = senderId?.toString() === myId?.toString();
+  // Skip deleted messages rendering (show placeholder)
+  const isDeleted = m.isDeleted;
 
-  const time = new Date(m.createdAt || Date.now());
-  const timeStr = time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const myId     = me?.uid || me?._id || '';
+  const senderId = m.senderUser?._id || m.senderUser;
+  const isMe     = senderId?.toString() === myId?.toString();
+
+  const time     = new Date(m.createdAt || Date.now());
+  const timeStr  = time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+  // ── FEATURE #6: Read receipt HTML ──
+  let receiptHTML = '';
+  if (isMe) {
+    if (m.seen) {
+      receiptHTML = `<span class="msg-receipt"><span class="receipt-seen" title="Seen">✓✓</span></span>`;
+    } else {
+      receiptHTML = `<span class="msg-receipt sent">✓</span>`;
+    }
+  }
 
   const div = document.createElement('div');
+  div.dataset.msgId = m._id;
   div.innerHTML = `
     <div class="msg-row ${isMe ? 'me' : 'them'}">
-      <div class="bubble ${isMe ? 'me' : 'them'}">${esc(m.text)}</div>
+      <div class="bubble ${isMe ? 'me' : 'them'}${isDeleted ? ' deleted' : ''}">
+        ${isDeleted ? 'This message was deleted' : esc(m.text)}
+      </div>
+      ${!isDeleted && isMe ? `
+        <div class="msg-actions" title="Delete message">
+          <button class="msg-delete-btn" data-msg-id="${m._id}">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/>
+            </svg>
+          </button>
+        </div>` : ''}
     </div>
-    <div class="msg-time-row ${isMe ? 'me' : 'them'}">${timeStr}</div>`;
+    <div class="msg-time-row ${isMe ? 'me' : 'them'}">
+      ${timeStr} ${receiptHTML}
+    </div>`;
 
   el.appendChild(div);
   el.scrollTop = el.scrollHeight;
+
+  // ── FEATURE #7: Bind delete button ──
+  if (!isDeleted && isMe) {
+    div.querySelector('.msg-delete-btn')?.addEventListener('click', async e => {
+      e.stopPropagation();
+      const ok = await confirm('Delete message?', 'This message will be removed for everyone.');
+      if (!ok) return;
+      try {
+        const res = await fetch(`${API_URL}/messages/${m._id}`, {
+          method: 'DELETE',
+          headers: authHeaders(),
+        });
+        if (!res.ok) throw new Error('Failed');
+        const bubble = div.querySelector('.bubble');
+        if (bubble) {
+          bubble.classList.add('deleted');
+          bubble.textContent = 'This message was deleted';
+        }
+        div.querySelector('.msg-actions')?.remove();
+      } catch (err) {
+        toast('Could not delete message', 'error');
+      }
+    });
+  }
 }
 
 function esc(s) {
@@ -525,7 +678,7 @@ function esc(s) {
 
 
 /* ══════════════════════════════════════════════════
-   REQUESTS — real pending requests from DB
+   REQUESTS — real pending + badge update
 ══════════════════════════════════════════════════ */
 export async function renderRequests() {
   document.getElementById('app').innerHTML = `
@@ -547,8 +700,12 @@ export async function renderRequests() {
 
   try {
     const res = await fetch(`${API_URL}/connections/requests`, { headers: authHeaders() });
+    if (res.status === 401) { navigate('/login'); return; }
     if (!res.ok) throw new Error('Failed');
     const requests = await res.json();
+
+    // Update pending count in state (drives tab badge)
+    setState({ pendingCount: requests.length });
 
     document.getElementById('req-sub').textContent =
       requests.length ? `${requests.length} pending` : 'All caught up';
@@ -572,11 +729,11 @@ export async function renderRequests() {
       return `
         <div class="request-card" data-conn-id="${req._id}">
           <div style="display:flex;gap:12px;align-items:center">
-            ${avatarHTML(name, u.photoURL, 52)}
-            <div style="flex:1">
+            ${avatarWithStatusHTML(name, u.photoURL, 52, u.isOnline)}
+            <div style="flex:1;min-width:0">
               <div style="font-size:16px;font-weight:600;color:var(--label-primary)">${name}</div>
               <div style="font-size:13px;color:var(--label-secondary);margin-top:2px">${u.department||''} · ${u.year||''}</div>
-              ${u.bio ? `<div style="font-size:13px;color:var(--label-secondary);margin-top:4px">"${u.bio}"</div>` : ''}
+              ${u.bio ? `<div style="font-size:13px;color:var(--label-secondary);margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">"${u.bio}"</div>` : ''}
             </div>
           </div>
           ${tags ? `<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:10px">${tags}</div>` : ''}
@@ -600,11 +757,11 @@ export async function renderRequests() {
             body: JSON.stringify({ connectionId: connId }),
           });
           if (!res2.ok) throw new Error('Failed');
-
           toast(action === 'accept' ? 'Connected! 🎉 Open Chats to say hi' : 'Request declined', 'success');
           card?.remove();
 
           const remaining = document.querySelectorAll('.request-card').length;
+          setState({ pendingCount: remaining });
           const sub = document.getElementById('req-sub');
           if (sub) sub.textContent = remaining ? `${remaining} pending` : 'All caught up';
 

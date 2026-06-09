@@ -1,30 +1,37 @@
 // js/screens/profile.js
 import {
   navigate, back, getState, setState,
-  avatarHTML, tagHTML, toast, confirm,
+  avatarHTML, avatarWithStatusHTML, tagHTML, lastSeenText, toast, confirm,
   DUMMY_USER, LOOKING, YEARS, OPEN_TO, DEPTS,
 } from '../helpers.js';
 import { tabBarHTML, bindTabs } from './tabs.js';
+import API_URL from '../api.js';
+
+function authHeaders() {
+  return {
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${localStorage.getItem('token')}`,
+  };
+}
 
 /* ══════════════════════════════════════════════════
-   MY PROFILE
+   MY PROFILE  — fixes #1 (count) + feature #2 (list)
 ══════════════════════════════════════════════════ */
-export function renderProfile() {
-  // Merge localStorage photo overrides so edits show immediately
+export async function renderProfile() {
   const _base = getState().currentUser || DUMMY_USER;
   const p = {
     ..._base,
     photoURL: localStorage.getItem('cipher_photoURL') || _base.photoURL || '',
     coverURL: localStorage.getItem('cipher_coverURL') || _base.coverURL || '',
   };
-  const tags = (p.lookingFor||[]).map(tagHTML).join('');
-  const interests = (p.interests||[]).map(i =>
-    `<span class="interest-pill">${i}</span>`).join('');
+
   const coverBg = `background:linear-gradient(145deg,#e8f5e9,#c8e6c9)`;
 
+  // Render skeleton while we fetch real data
   document.getElementById('app').innerHTML = `
     <div class="screen screen-enter">
-      <div class="screen-body">
+      <div class="screen-body" id="profile-scroll">
+
         <!-- Cover -->
         <div class="profile-cover" style="${p.coverURL ? '' : coverBg}">
           ${p.coverURL ? `<img src="${p.coverURL}" alt="" />` : ''}
@@ -37,28 +44,36 @@ export function renderProfile() {
             <div class="profile-avatar-ring">
               ${avatarHTML(p.name, p.photoURL, 80)}
             </div>
-            <button class="btn btn-secondary-fill btn-sm" id="settings-btn" style="width:auto;margin-bottom:6px">
+            <button class="btn btn-secondary-fill btn-sm" id="settings-btn"
+              style="width:auto;margin-bottom:6px;padding:8px 14px">
               ⚙️ Settings
             </button>
           </div>
-          <div class="profile-name" style="margin-top:14px">${p.name}</div>
-          <div class="profile-meta">${p.department} · ${p.year}</div>
-          ${tags ? `<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:12px">${tags}</div>` : ''}
+          <div class="profile-name" style="margin-top:14px">${p.name || 'Student'}</div>
+          <div class="profile-meta">${p.department || '—'} · ${p.year || '—'}</div>
+          ${(p.lookingFor||[]).length ? `
+            <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:12px">
+              ${(p.lookingFor||[]).map(tagHTML).join('')}
+            </div>` : ''}
         </div>
 
-        <!-- Stats -->
-        <div style="padding:16px;border-bottom:0.5px solid var(--separator)">
+        <!-- Stats  (skeleton until data loads) -->
+        <div class="profile-stats-section" id="stats-section">
           <div class="stat-row">
             <div class="stat-item">
-              <div class="stat-num">${p.connections?.length || 0}</div>
+              <div class="stat-num" id="stat-connections">
+                <span class="skeleton-num"></span>
+              </div>
               <div class="stat-label">Connections</div>
             </div>
             <div class="stat-item">
-              <div class="stat-num">0</div>
+              <div class="stat-num" id="stat-views">0</div>
               <div class="stat-label">Profile views</div>
             </div>
             <div class="stat-item">
-              <div class="stat-num">0</div>
+              <div class="stat-num" id="stat-chats">
+                <span class="skeleton-num"></span>
+              </div>
               <div class="stat-label">Chats</div>
             </div>
           </div>
@@ -76,11 +91,23 @@ export function renderProfile() {
           <div class="profile-bio" style="font-style:italic">"${p.icebreaker}"</div>
         </div>` : ''}
 
-        ${p.interests?.length ? `
+        ${(p.interests||[]).length ? `
         <div class="profile-section">
           <div class="profile-section-title">Interests</div>
-          <div style="display:flex;flex-wrap:wrap;gap:7px">${interests}</div>
+          <div style="display:flex;flex-wrap:wrap;gap:7px">
+            ${(p.interests||[]).map(i => `<span class="interest-pill">${i}</span>`).join('')}
+          </div>
         </div>` : ''}
+
+        <!-- Connections list (loads async) -->
+        <div class="profile-section" id="connections-section">
+          <div class="profile-section-title">Connections</div>
+          <div id="connections-list" style="margin-top:4px">
+            <div style="display:flex;justify-content:center;padding:20px 0">
+              <div class="spinner"></div>
+            </div>
+          </div>
+        </div>
 
         <!-- Dark mode toggle -->
         <div class="profile-section" style="border-bottom:none">
@@ -106,7 +133,6 @@ export function renderProfile() {
     </div>`;
 
   bindTabs();
-
   document.getElementById('settings-btn').addEventListener('click', () => navigate('/settings'));
   document.getElementById('dark-toggle').addEventListener('click', () => {
     const next = !getState().darkMode;
@@ -115,7 +141,109 @@ export function renderProfile() {
     document.documentElement.classList.toggle('dark', next);
     renderProfile();
   });
+
+  // ── Load real connection data ──
+  _loadProfileData(p);
 }
+
+async function _loadProfileData(p) {
+  const onlineUsers = getState().onlineUsers || new Set();
+
+  try {
+    // Fetch connections list (also gives us the count)
+    const res = await fetch(`${API_URL}/connections`, { headers: authHeaders() });
+    if (!res.ok) throw new Error('Failed to load connections');
+    const conns = await res.json();
+    const count = conns.length;
+
+    // ── FIX #1: Update stats with real count ──
+    const statEl = document.getElementById('stat-connections');
+    if (statEl) statEl.textContent = count;
+    const chatEl = document.getElementById('stat-chats');
+    if (chatEl) chatEl.textContent = count; // same — each connection = 1 potential chat
+
+    // ── FEATURE #2: Render connections list ──
+    const listEl = document.getElementById('connections-list');
+    if (!listEl) return;
+
+    if (!count) {
+      listEl.innerHTML = `
+        <div style="text-align:center;padding:20px 0;color:var(--label-secondary);font-size:14px">
+          No connections yet — discover people and connect!
+        </div>`;
+      return;
+    }
+
+    listEl.innerHTML = `
+      <div class="connections-list">
+        ${conns.map(c => {
+          const u    = c.user;
+          const name = u.username || u.name || 'Student';
+          const isOnline = u.isOnline || onlineUsers.has(u._id?.toString());
+          return `
+            <div class="connection-row">
+              <div style="flex-shrink:0">
+                ${avatarWithStatusHTML(name, u.photoURL, 46, isOnline)}
+              </div>
+              <div class="connection-info">
+                <div class="connection-name">${name}</div>
+                <div class="connection-meta">${u.department || ''} · ${u.year || ''}</div>
+                <div class="connection-status" style="font-size:12px;margin-top:2px">
+                  ${lastSeenText(isOnline, u.lastSeen)}
+                </div>
+              </div>
+              <button class="btn btn-pill btn-sm connection-chat-btn"
+                data-chatid="${c.connectionId}"
+                data-userid="${u._id}"
+                data-username="${name}"
+                data-dept="${u.department || ''}"
+                data-year="${u.year || ''}"
+                data-photo="${u.photoURL || ''}">
+                Chat
+              </button>
+            </div>`;
+        }).join('')}
+      </div>`;
+
+    // Bind chat buttons
+    listEl.querySelectorAll('.connection-chat-btn').forEach(btn =>
+      btn.addEventListener('click', () => {
+        navigate('/chatroom', {
+          chat: {
+            chatId: btn.dataset.chatid,
+            otherUser: {
+              _id:        btn.dataset.userid,
+              username:   btn.dataset.username,
+              department: btn.dataset.dept,
+              year:       btn.dataset.year,
+              photoURL:   btn.dataset.photo,
+            },
+          },
+        });
+      })
+    );
+
+    // Also update pending count while we're here
+    try {
+      const reqRes = await fetch(`${API_URL}/connections/requests`, { headers: authHeaders() });
+      if (reqRes.ok) {
+        const reqs = await reqRes.json();
+        setState({ pendingCount: reqs.length });
+      }
+    } catch (_) {}
+
+  } catch (err) {
+    console.error(err);
+    const statEl = document.getElementById('stat-connections');
+    if (statEl) statEl.textContent = '—';
+    const listEl = document.getElementById('connections-list');
+    if (listEl) listEl.innerHTML = `
+      <div style="text-align:center;padding:20px 0;color:var(--label-secondary);font-size:13px">
+        Could not load connections
+      </div>`;
+  }
+}
+
 
 /* ══════════════════════════════════════════════════
    SETTINGS
@@ -124,11 +252,11 @@ export function renderSettings() {
   const p = getState().currentUser || DUMMY_USER;
 
   const rows = [
-    { icon: '✏️', bg: '#34aadc', label: 'Edit profile',          sub: 'Update your bio and photos', action: 'edit' },
-    { icon: '🔔', bg: '#ff9500', label: 'Notifications',          sub: 'Manage alerts',              action: 'notif' },
-    { icon: '🔒', bg: '#636366', label: 'Privacy',               sub: 'Who can see your profile',   action: 'privacy' },
-    { icon: '🚫', bg: '#ff3b30', label: 'Blocked users',          sub: 'Manage blocked people',      action: 'blocked' },
-    { icon: 'ℹ️',  bg: '#007aff', label: 'About Cipher',          sub: 'Version 1.0.0',              action: 'about' },
+    { icon: '✏️', bg: '#34aadc', label: 'Edit profile',   sub: 'Update your bio and photos', action: 'edit' },
+    { icon: '🔔', bg: '#ff9500', label: 'Notifications',   sub: 'Manage alerts',              action: 'notif' },
+    { icon: '🔒', bg: '#636366', label: 'Privacy',         sub: 'Who can see your profile',   action: 'privacy' },
+    { icon: '🚫', bg: '#ff3b30', label: 'Blocked users',   sub: 'Manage blocked people',      action: 'blocked' },
+    { icon: 'ℹ️', bg: '#007aff',  label: 'About Cipher',   sub: 'Version 1.0.0',              action: 'about' },
   ];
 
   document.getElementById('app').innerHTML = `
@@ -152,9 +280,11 @@ export function renderSettings() {
         <div class="list-group" style="margin-bottom:24px">
           <div style="display:flex;align-items:center;gap:14px;padding:16px">
             ${avatarHTML(p.name, p.photoURL, 56)}
-            <div style="flex:1">
-              <div style="font-size:19px;font-weight:600;color:var(--label-primary)">${p.name}</div>
-              <div style="font-size:14px;color:var(--label-secondary);margin-top:3px">${p.email}</div>
+            <div style="flex:1;min-width:0">
+              <div style="font-size:19px;font-weight:600;color:var(--label-primary);
+                white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${p.name}</div>
+              <div style="font-size:14px;color:var(--label-secondary);margin-top:3px;
+                white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${p.email}</div>
             </div>
           </div>
         </div>
@@ -196,7 +326,6 @@ export function renderSettings() {
     </div>`;
 
   document.getElementById('back-btn').addEventListener('click', back);
-
   document.getElementById('dark-toggle').addEventListener('click', () => {
     const next = !getState().darkMode;
     setState({ darkMode: next });
@@ -218,27 +347,29 @@ export function renderSettings() {
   document.getElementById('signout-btn').addEventListener('click', async () => {
     const ok = await confirm('Sign out', 'Are you sure you want to sign out?');
     if (ok) {
-      setState({ currentUser: null });
+      localStorage.removeItem('token');
+      localStorage.removeItem('cipher_photoURL');
+      localStorage.removeItem('cipher_coverURL');
+      setState({ currentUser: null, pendingCount: 0, unreadCounts: {} });
       navigate('/login');
     }
   });
 }
 
+
 /* ══════════════════════════════════════════════════
-   EDIT PROFILE
+   EDIT PROFILE — with real backend save
 ══════════════════════════════════════════════════ */
 export function renderEditProfile() {
   const p = getState().currentUser || DUMMY_USER;
 
-  // Load persisted photo overrides
   const storedPhoto = localStorage.getItem('cipher_photoURL') || p.photoURL || '';
   const storedCover = localStorage.getItem('cipher_coverURL') || p.coverURL || '';
 
-  // Working copies (updated as user picks files / edits)
   let draftPhoto = storedPhoto;
   let draftCover = storedCover;
 
-  const initials = p.name.split(' ').map(w => w[0]).join('').slice(0,2).toUpperCase();
+  const initials = (p.name || 'U').split(' ').map(w => w[0]).join('').slice(0,2).toUpperCase();
 
   function avatarPreviewHTML(url) {
     return url
@@ -275,12 +406,10 @@ export function renderEditProfile() {
 
       <div class="screen-body" style="background:var(--bg-secondary);padding-bottom:40px">
 
-        <!-- ── Photo Section ─────────────────────────────── -->
+        <!-- Photo Section -->
         <div style="background:var(--bg-card);margin-bottom:24px">
-
-          <!-- Cover photo -->
-          <div id="cover-preview" style="height:110px;position:relative;cursor:pointer;${coverPreviewStyle(draftCover)}" id="cover-tap">
-            <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.25);border-bottom:0.5px solid var(--separator)">
+          <div id="cover-preview" style="height:110px;position:relative;cursor:pointer;${coverPreviewStyle(draftCover)}">
+            <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.25)">
               <div style="background:rgba(0,0,0,0.45);backdrop-filter:blur(6px);border-radius:20px;padding:7px 14px;display:flex;align-items:center;gap:6px">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                   <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
@@ -292,13 +421,11 @@ export function renderEditProfile() {
           </div>
           <input type="file" id="cover-input" accept="image/*" style="display:none" />
 
-          <!-- Avatar overlay -->
           <div style="position:relative;margin-top:-38px;padding:0 20px 16px;display:flex;align-items:flex-end;justify-content:space-between">
             <div style="position:relative;display:inline-block">
               <div id="avatar-preview" style="width:76px;height:76px;border-radius:50%;border:3px solid var(--bg-card);background:var(--accent-bg);display:flex;align-items:center;justify-content:center;overflow:hidden;position:relative;box-shadow:var(--shadow-md);cursor:pointer">
                 ${avatarPreviewHTML(draftPhoto)}
               </div>
-              <!-- Camera badge -->
               <div id="photo-tap" style="position:absolute;bottom:0;right:0;width:26px;height:26px;border-radius:50%;background:var(--accent);border:2px solid var(--bg-card);display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:var(--shadow-sm)">
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                   <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
@@ -313,12 +440,12 @@ export function renderEditProfile() {
           <input type="file" id="photo-input" accept="image/*" style="display:none" />
         </div>
 
-        <!-- ── Basic Info ─────────────────────────────────── -->
+        <!-- Basic Info -->
         <div class="form-label-above" style="padding:0 20px">Basic Info</div>
         <div class="form-section" style="margin:8px 16px 0">
           <div class="form-row">
             <div class="form-row-label">Name</div>
-            <input id="field-name" type="text" value="${p.name}" placeholder="Your name" />
+            <input id="field-name" type="text" value="${p.name || ''}" placeholder="Your name" />
           </div>
           <div class="form-row">
             <div class="form-row-label">Year</div>
@@ -334,24 +461,26 @@ export function renderEditProfile() {
           </div>
         </div>
 
-        <!-- ── Bio ───────────────────────────────────────── -->
+        <!-- Bio -->
         <div class="form-label-above" style="padding:0 20px">Bio</div>
         <div class="form-section" style="margin:8px 16px 0">
           <div class="form-row" style="border-bottom:none;align-items:flex-start">
-            <textarea id="field-bio" rows="3" placeholder="Tell people who you are…" style="flex:1;font-size:15px;color:var(--label-primary);padding:12px 0;line-height:1.5;resize:none">${p.bio || ''}</textarea>
+            <textarea id="field-bio" rows="3" placeholder="Tell people who you are…"
+              style="flex:1;font-size:15px;color:var(--label-primary);padding:12px 0;line-height:1.5;resize:none">${p.bio || ''}</textarea>
           </div>
         </div>
         <div class="form-hint" style="padding:0 20px">Max 200 characters</div>
 
-        <!-- ── Icebreaker ─────────────────────────────────── -->
+        <!-- Icebreaker -->
         <div class="form-label-above" style="padding:0 20px">Icebreaker</div>
         <div class="form-section" style="margin:8px 16px 0">
           <div class="form-row" style="border-bottom:none;align-items:flex-start">
-            <textarea id="field-ice" rows="2" placeholder="Something fun or memorable about you…" style="flex:1;font-size:15px;color:var(--label-primary);padding:12px 0;line-height:1.5;resize:none">${p.icebreaker || ''}</textarea>
+            <textarea id="field-ice" rows="2" placeholder="Something fun or memorable about you…"
+              style="flex:1;font-size:15px;color:var(--label-primary);padding:12px 0;line-height:1.5;resize:none">${p.icebreaker || ''}</textarea>
           </div>
         </div>
 
-        <!-- ── Interests ──────────────────────────────────── -->
+        <!-- Interests -->
         <div class="form-label-above" style="padding:0 20px">Interests</div>
         <div style="padding:0 16px 4px">
           <div class="chip-wrap" id="interest-chips">
@@ -361,7 +490,7 @@ export function renderEditProfile() {
           </div>
         </div>
 
-        <!-- ── Looking For ────────────────────────────────── -->
+        <!-- Looking For -->
         <div class="form-label-above" style="padding:0 20px">Looking For</div>
         <div style="padding:0 16px 4px">
           <div class="chip-wrap" id="looking-chips">
@@ -377,10 +506,9 @@ export function renderEditProfile() {
       </div>
     </div>`;
 
-  // ── Back ──────────────────────────────────────────────
   document.getElementById('back-btn').addEventListener('click', back);
 
-  // ── Profile photo picker ──────────────────────────────
+  // Photo picker
   const photoInput = document.getElementById('photo-input');
   const photoTap   = document.getElementById('photo-tap');
   const avatarPreview = document.getElementById('avatar-preview');
@@ -396,7 +524,6 @@ export function renderEditProfile() {
     const reader = new FileReader();
     reader.onload = e => {
       draftPhoto = e.target.result;
-      // Update avatar preview live
       avatarPreview.innerHTML = `<img src="${draftPhoto}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:50%" />`;
       const rmBtn = document.getElementById('remove-photo-btn');
       if (rmBtn) rmBtn.textContent = 'Remove photo';
@@ -405,7 +532,6 @@ export function renderEditProfile() {
     reader.readAsDataURL(file);
   });
 
-  // Remove photo
   document.getElementById('remove-photo-btn').addEventListener('click', () => {
     if (!draftPhoto) return;
     draftPhoto = '';
@@ -414,12 +540,10 @@ export function renderEditProfile() {
     toast('Photo removed');
   });
 
-  // ── Cover photo picker ────────────────────────────────
-  const coverInput = document.getElementById('cover-input');
+  // Cover picker
+  const coverInput   = document.getElementById('cover-input');
   const coverPreview = document.getElementById('cover-preview');
-
   coverPreview.addEventListener('click', () => coverInput.click());
-
   coverInput.addEventListener('change', () => {
     const file = coverInput.files[0];
     if (!file) return;
@@ -433,70 +557,74 @@ export function renderEditProfile() {
     reader.readAsDataURL(file);
   });
 
-  // ── Interest chip toggles ─────────────────────────────
   document.getElementById('interest-chips').addEventListener('click', e => {
     const chip = e.target.closest('[data-interest]');
-    if (!chip) return;
-    chip.classList.toggle('selected');
+    if (chip) chip.classList.toggle('selected');
   });
-
-  // ── Looking-for chip toggles ──────────────────────────
   document.getElementById('looking-chips').addEventListener('click', e => {
     const chip = e.target.closest('[data-looking]');
-    if (!chip) return;
-    chip.classList.toggle('selected');
+    if (chip) chip.classList.toggle('selected');
   });
 
-  // ── Save ──────────────────────────────────────────────
-  function doSave() {
+  async function doSave() {
     const name = document.getElementById('field-name').value.trim();
     if (!name) { toast('Name cannot be empty', 'error'); return; }
 
-    const bio       = document.getElementById('field-bio').value.trim().slice(0, 200);
-    const icebreaker= document.getElementById('field-ice').value.trim();
-    const year      = document.getElementById('field-year').value;
-    const department= document.getElementById('field-dept').value;
+    const bio        = document.getElementById('field-bio').value.trim().slice(0, 200);
+    const icebreaker = document.getElementById('field-ice').value.trim();
+    const year       = document.getElementById('field-year').value;
+    const department = document.getElementById('field-dept').value;
+    const interests  = [...document.querySelectorAll('#interest-chips [data-interest].selected')].map(c => c.dataset.interest);
+    const lookingFor = [...document.querySelectorAll('#looking-chips [data-looking].selected')].map(c => c.dataset.looking);
 
-    const selInterests = [...document.querySelectorAll('#interest-chips [data-interest].selected')].map(c => c.dataset.interest);
-    const selLooking   = [...document.querySelectorAll('#looking-chips [data-looking].selected')].map(c => c.dataset.looking);
+    const saveBtn = document.getElementById('save-btn');
+    const saveMainBtn = document.getElementById('save-main-btn');
+    if (saveBtn) { saveBtn.textContent = 'Saving…'; saveBtn.disabled = true; }
+    if (saveMainBtn) { saveMainBtn.textContent = 'Saving…'; saveMainBtn.disabled = true; }
 
-    // Persist photos in localStorage
-    if (draftPhoto) localStorage.setItem('cipher_photoURL', draftPhoto);
-    else            localStorage.removeItem('cipher_photoURL');
-    if (draftCover) localStorage.setItem('cipher_coverURL', draftCover);
-    else            localStorage.removeItem('cipher_coverURL');
+    try {
+      const res = await fetch(`${API_URL}/auth/profile`, {
+        method: 'PUT',
+        headers: authHeaders(),
+        body: JSON.stringify({ username: name, bio, icebreaker, year, department, interests, lookingFor, photoURL: draftPhoto, coverURL: draftCover }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Save failed');
 
-    // Merge into app state
-    const existing = getState().currentUser || DUMMY_USER;
-    setState({
-      currentUser: {
-        ...existing,
-        name,
-        bio,
-        icebreaker,
-        year,
-        department,
-        photoURL:  draftPhoto,
-        coverURL:  draftCover,
-        interests: selInterests,
-        lookingFor:selLooking,
-      }
-    });
+      if (draftPhoto) localStorage.setItem('cipher_photoURL', draftPhoto);
+      else            localStorage.removeItem('cipher_photoURL');
+      if (draftCover) localStorage.setItem('cipher_coverURL', draftCover);
+      else            localStorage.removeItem('cipher_coverURL');
 
-    toast('Profile updated 🎉', 'success');
-    back();
+      const existing = getState().currentUser || {};
+      setState({
+        currentUser: {
+          ...existing,
+          name, bio, icebreaker, year, department,
+          username: name,
+          photoURL: draftPhoto, coverURL: draftCover,
+          interests, lookingFor,
+        }
+      });
+
+      toast('Profile updated 🎉', 'success');
+      back();
+    } catch (err) {
+      toast(err.message || 'Could not save profile', 'error');
+      if (saveBtn) { saveBtn.textContent = 'Save'; saveBtn.disabled = false; }
+      if (saveMainBtn) { saveMainBtn.textContent = 'Save Changes'; saveMainBtn.disabled = false; }
+    }
   }
 
   document.getElementById('save-btn').addEventListener('click', doSave);
   document.getElementById('save-main-btn').addEventListener('click', doSave);
 }
 
+
 /* ══════════════════════════════════════════════════
    BLOCKED USERS
 ══════════════════════════════════════════════════ */
-let blockedList = [
-  { uid: 'ub1', name: 'Rahul Dey', department: 'B.Tech CSE', year: '3rd year', photoURL: '' },
-];
+let blockedList = [];
 
 export function renderBlocked() {
   document.getElementById('app').innerHTML = `
@@ -513,7 +641,6 @@ export function renderBlocked() {
         <div class="nav-center"><span class="nav-title-inline">Blocked Users</span></div>
         <div class="nav-right" style="min-width:60px"></div>
       </div>
-
       <div class="screen-body" id="blocked-area" style="background:var(--bg-secondary)">
         ${blockedHTML()}
       </div>

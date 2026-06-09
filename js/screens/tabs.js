@@ -24,7 +24,11 @@ const SVGs = {
 };
 
 export function tabBarHTML(active) {
-  const { pendingCount } = getState();
+  const { pendingCount, unreadCounts } = getState();
+
+  // ── Sum up all unread message counts across all connections ──
+  const totalUnread = Object.values(unreadCounts || {}).reduce((sum, n) => sum + n, 0);
+
   const tabs = [
     { id: 'discover',  label: 'Discover', path: '/discover' },
     { id: 'search',    label: 'Search',   path: '/search'  },
@@ -32,16 +36,27 @@ export function tabBarHTML(active) {
     { id: 'requests',  label: 'Requests', path: '/requests'},
     { id: 'profile',   label: 'Profile',  path: '/profile' },
   ];
+
   return `
     <nav class="tab-bar">
-      ${tabs.map(t => `
-        <div class="tab-item ${t.id === active ? 'active' : ''}" data-nav="${t.path}">
-          <div class="tab-icon">
-            ${SVGs[t.id]}
-            ${t.id === 'requests' && pendingCount > 0 ? `<span class="tab-badge">${pendingCount}</span>` : ''}
-          </div>
-          <span class="tab-label">${t.label}</span>
-        </div>`).join('')}
+      ${tabs.map(t => {
+        // Requests badge: pending connection requests
+        const reqBadge = t.id === 'requests' && pendingCount > 0
+          ? `<span class="tab-badge">${pendingCount > 9 ? '9+' : pendingCount}</span>`
+          : '';
+        // Chats badge: total unread messages
+        const chatBadge = t.id === 'chats' && totalUnread > 0
+          ? `<span class="tab-badge">${totalUnread > 99 ? '99+' : totalUnread}</span>`
+          : '';
+        return `
+          <div class="tab-item ${t.id === active ? 'active' : ''}" data-nav="${t.path}">
+            <div class="tab-icon">
+              ${SVGs[t.id]}
+              ${reqBadge}${chatBadge}
+            </div>
+            <span class="tab-label">${t.label}</span>
+          </div>`;
+      }).join('')}
     </nav>`;
 }
 
