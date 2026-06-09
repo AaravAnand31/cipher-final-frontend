@@ -465,7 +465,7 @@ function connectSocket(chat, me, otherName) {
   // Disconnect old socket if any
   if (_socket) { _socket.disconnect(); }
 
-  _socket = window.io('http://localhost:5500');
+  _socket = window.io('https://cipher-425d.onrender.com');
 
   _socket.on('connect', () => {
     _socket.emit('user_online', me?.uid || me?._id || '');
