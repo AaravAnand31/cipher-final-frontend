@@ -1,15 +1,10 @@
-// js/helpers.js  —  Router + Store + Utils
+// js/helpers.js  —  Router + Store + Utils (no Firebase)
 
 /* ═══════════ STORE ═══════════ */
 const _state = {
-  currentUser: null,
+  currentUser: null,    // filled on "login"
   darkMode: JSON.parse(localStorage.getItem('cipher_dark') || 'false'),
-  // ── CHANGED: pendingCount is now fetched from backend, not a dummy value ──
-  pendingCount: 0,
-  // ── NEW: unreadCounts map  { connectionId → count } ──
-  unreadCounts: {},
-  // ── NEW: onlineUsers set  { userId } ──
-  onlineUsers: new Set(),
+  pendingCount: 2,      // dummy badge
 };
 const _subs = {};
 
@@ -53,7 +48,9 @@ export function back() {
 }
 
 function _dispatch(path, isBack = false) {
+  // exact match
   if (_routes[path]) { _routes[path]({ back: isBack }); return; }
+  // pattern match
   for (const pattern of Object.keys(_routes)) {
     const pParts = pattern.split('/').filter(Boolean);
     const aParts = path.split('/').filter(Boolean);
@@ -66,7 +63,7 @@ function _dispatch(path, isBack = false) {
     }
     if (ok) { _params = { ..._params, ...params }; _routes[pattern]({ back: isBack }); return; }
   }
-  console.log("Route not found:", path);
+console.log("Route not found:", path);
 }
 
 /* ═══════════ UTILS ═══════════ */
@@ -102,7 +99,7 @@ export function confirm(title, body) {
   });
 }
 
-// Avatar — returns DOM element
+// Avatar
 export function avatarEl(name = '', photoURL = '', size = 46) {
   const initials = name.split(' ').map(w => w[0]).join('').slice(0,2).toUpperCase() || '?';
   const fontSize = Math.round(size * 0.36);
@@ -120,7 +117,6 @@ export function avatarEl(name = '', photoURL = '', size = 46) {
   return div;
 }
 
-// Avatar — returns HTML string (no online dot)
 export function avatarHTML(name = '', photoURL = '', size = 46) {
   const initials = name.split(' ').map(w => w[0]).join('').slice(0,2).toUpperCase() || '?';
   const fontSize = Math.round(size * 0.36);
@@ -128,18 +124,7 @@ export function avatarHTML(name = '', photoURL = '', size = 46) {
   return `<div class="avatar" style="width:${size}px;height:${size}px;font-size:${fontSize}px">${img}${photoURL ? '' : initials}</div>`;
 }
 
-// ── NEW: Avatar with online dot ──
-export function avatarWithStatusHTML(name = '', photoURL = '', size = 46, isOnline = false) {
-  const dotSize  = Math.max(10, Math.round(size * 0.22));
-  const dotBorder = Math.max(2, Math.round(dotSize * 0.2));
-  return `
-    <div style="position:relative;display:inline-block;flex-shrink:0">
-      ${avatarHTML(name, photoURL, size)}
-      ${isOnline ? `<div class="online-dot" style="width:${dotSize}px;height:${dotSize}px;border-width:${dotBorder}px"></div>` : ''}
-    </div>`;
-}
-
-// Time ago (short)
+// Time
 export function timeAgo(date) {
   const diff = Date.now() - new Date(date).getTime();
   const m = Math.floor(diff / 60000);
@@ -148,20 +133,6 @@ export function timeAgo(date) {
   const h = Math.floor(m / 60);
   if (h < 24) return `${h}h`;
   return `${Math.floor(h / 24)}d`;
-}
-
-// ── NEW: lastSeen display text ──
-export function lastSeenText(isOnline, lastSeen) {
-  if (isOnline) return '<span class="online-label">● Online</span>';
-  if (!lastSeen) return '<span style="color:var(--label-tertiary)">Offline</span>';
-  const diff = Date.now() - new Date(lastSeen).getTime();
-  const m = Math.floor(diff / 60000);
-  if (m < 1)  return '<span style="color:var(--label-tertiary)">Last seen just now</span>';
-  if (m < 60) return `<span style="color:var(--label-tertiary)">Last seen ${m}m ago</span>`;
-  const h = Math.floor(m / 60);
-  if (h < 24) return `<span style="color:var(--label-tertiary)">Last seen ${h}h ago</span>`;
-  const d = Math.floor(h / 24);
-  return `<span style="color:var(--label-tertiary)">Last seen ${d}d ago</span>`;
 }
 
 // Tag colors
@@ -182,25 +153,136 @@ export function tagHTML(label) {
 export const spinnerHTML = `<span class="spinner"></span>`;
 export const spinnerDarkHTML = `<span class="spinner spinner-dark"></span>`;
 
-/* ═══════════ STATIC LISTS ═══════════ */
-export const YEARS   = ['1st year', '2nd year', '3rd year', 'Final year', 'PG'];
-export const LOOKING = ['Make friends', 'Project partner', 'Study buddy', 'Mentor / learn', 'Chai & chat', 'Startup ideas'];
-export const DEPTS   = ['B.Tech CSE', 'B.Tech ECE', 'BCA', 'BBA', 'MBA', 'B.Com', 'BA', 'Other'];
-export const OPEN_TO = ['Everyone', 'Same year', 'Seniors only', 'Juniors only'];
+/* ═══════════ DUMMY DATA ═══════════ */
 
-/* ═══════════ DUMMY DATA (kept for fallback/dev) ═══════════ */
 export const DUMMY_USER = {
   uid: 'me-001',
   name: 'Aarav Anand',
   email: 'aarav.anand@christuniversity.in',
   year: '2nd year',
   department: 'B.Tech CSE',
-  bio: 'Builder by day, chess nerd by night.',
+  bio: 'Builder by day, chess nerd by night. I love hackathons and think every problem has an elegant solution.',
   icebreaker: 'The one thing I want to build at college is a startup that actually ships.',
   lookingFor: ['Project partner', 'Startup ideas', 'Make friends'],
   interests: ['Chess', 'Coding', 'Badminton', 'Music', 'Design'],
   openTo: ['Everyone'],
   photoURL: '',
   coverURL: '',
+  connections: ['u2', 'u3'],
   profileDone: true,
 };
+
+export const DUMMY_PEOPLE = [
+  {
+    uid: 'u1',
+    name: 'Priya Sharma',
+    year: '2nd year', department: 'BBA',
+    bio: 'Marketing enthusiast who loves brand strategy and consumer psychology.',
+    icebreaker: 'I once pitched a business idea to 300 people and it actually worked.',
+    lookingFor: ['Make friends', 'Startup ideas'],
+    interests: ['Marketing', 'Yoga', 'Books', 'Photography'],
+    photoURL: 'https://i.pravatar.cc/150?img=47',
+    coverURL: '',
+  },
+  {
+    uid: 'u2',
+    name: 'Rohan Verma',
+    year: '3rd year', department: 'B.Tech ECE',
+    bio: 'Hardware hacker obsessed with IoT and embedded systems. Also make lo-fi beats.',
+    icebreaker: 'I built a smart mirror for my room and now I cant use a normal one.',
+    lookingFor: ['Project partner', 'Study buddy'],
+    interests: ['IoT', 'Music Production', 'Cycling', 'Coffee'],
+    photoURL: 'https://i.pravatar.cc/150?img=12',
+    coverURL: '',
+  },
+  {
+    uid: 'u3',
+    name: 'Ananya Joshi',
+    year: '1st year', department: 'BCA',
+    bio: 'First-gen programmer, design geek, and chronic over-thinker (in a good way).',
+    icebreaker: 'My first app had 3 users — my mom, dad, and me.',
+    lookingFor: ['Mentor / learn', 'Make friends', 'Chai & chat'],
+    interests: ['UI Design', 'K-Drama', 'Sketching', 'Python'],
+    photoURL: 'https://i.pravatar.cc/150?img=5',
+    coverURL: '',
+  },
+  {
+    uid: 'u4',
+    name: 'Karan Mehta',
+    year: 'Final year', department: 'MBA',
+    bio: 'Aspiring VC. I read 40 startup case studies last semester. Looking to build my network.',
+    icebreaker: 'I can tell you which YC startups will fail in 5 minutes flat.',
+    lookingFor: ['Startup ideas', 'Project partner'],
+    interests: ['Finance', 'Startups', 'Running', 'Podcasts'],
+    photoURL: 'https://i.pravatar.cc/150?img=33',
+    coverURL: '',
+  },
+  {
+    uid: 'u5',
+    name: 'Ishaan Gupta',
+    year: '2nd year', department: 'B.Tech CSE',
+    bio: 'Open source contributor. I have 3 unfinished side projects and I\'m proud of all of them.',
+    icebreaker: 'My GitHub streak is longer than my last relationship.',
+    lookingFor: ['Project partner', 'Study buddy', 'Make friends'],
+    interests: ['Open Source', 'Gaming', 'Basketball', 'Linux'],
+    photoURL: 'https://i.pravatar.cc/150?img=68',
+    coverURL: '',
+  },
+];
+
+export const DUMMY_CHATS = [
+  {
+    chatId: 'chat-1',
+    otherUser: { uid: 'u2', name: 'Rohan Verma', year: '3rd year', department: 'B.Tech ECE', photoURL: 'https://i.pravatar.cc/150?img=12' },
+    lastMessage: 'Yo let\'s finalize the project tonight 🔥',
+    lastMessageAt: new Date(Date.now() - 8 * 60000),
+    unread: 2,
+  },
+  {
+    chatId: 'chat-2',
+    otherUser: { uid: 'u3', name: 'Ananya Joshi', year: '1st year', department: 'BCA', photoURL: 'https://i.pravatar.cc/150?img=5' },
+    lastMessage: 'That Figma file you sent is 🤌',
+    lastMessageAt: new Date(Date.now() - 3 * 3600000),
+    unread: 0,
+  },
+  {
+    chatId: 'chat-3',
+    otherUser: { uid: 'u4', name: 'Karan Mehta', year: 'Final year', department: 'MBA', photoURL: 'https://i.pravatar.cc/150?img=33' },
+    lastMessage: 'Let\'s catch up at the library tomorrow',
+    lastMessageAt: new Date(Date.now() - 1 * 86400000),
+    unread: 0,
+  },
+];
+
+export const DUMMY_MESSAGES = {
+  'chat-1': [
+    { id: 'm1', senderUid: 'u2', text: 'Hey! Saw your profile on Cipher. Looks like we\'re both into hackathons', time: new Date(Date.now() - 45 * 60000) },
+    { id: 'm2', senderUid: 'me-001', text: 'Yes!! Are you applying for HackCU next month?', time: new Date(Date.now() - 44 * 60000) },
+    { id: 'm3', senderUid: 'u2', text: 'Absolutely. Need a team. Want to pair up?', time: new Date(Date.now() - 43 * 60000) },
+    { id: 'm4', senderUid: 'me-001', text: '100% in. I can handle frontend + design, you take hardware/backend?', time: new Date(Date.now() - 42 * 60000) },
+    { id: 'm5', senderUid: 'u2', text: 'Perfect combo honestly 🤝', time: new Date(Date.now() - 40 * 60000) },
+    { id: 'm6', senderUid: 'u2', text: 'Yo let\'s finalize the project tonight 🔥', time: new Date(Date.now() - 8 * 60000) },
+  ],
+  'chat-2': [
+    { id: 'm1', senderUid: 'me-001', text: 'Hi Ananya! I noticed you\'re into UI design. What tools do you use?', time: new Date(Date.now() - 4 * 3600000) },
+    { id: 'm2', senderUid: 'u3', text: 'Figma mostly! Sometimes Framer for prototypes. You?', time: new Date(Date.now() - 3.9 * 3600000) },
+    { id: 'm3', senderUid: 'me-001', text: 'Same. Here\'s a file I\'ve been working on', time: new Date(Date.now() - 3.5 * 3600000) },
+    { id: 'm4', senderUid: 'u3', text: 'That Figma file you sent is 🤌', time: new Date(Date.now() - 3 * 3600000) },
+  ],
+};
+
+export const DUMMY_REQUESTS = [
+  {
+    requestId: 'req-1',
+    fromUser: { uid: 'u1', name: 'Priya Sharma', year: '2nd year', department: 'BBA', photoURL: 'https://i.pravatar.cc/150?img=47', bio: 'Marketing enthusiast who loves brand strategy.', lookingFor: ['Make friends', 'Startup ideas'] },
+  },
+  {
+    requestId: 'req-2',
+    fromUser: { uid: 'u5', name: 'Ishaan Gupta', year: '2nd year', department: 'B.Tech CSE', photoURL: 'https://i.pravatar.cc/150?img=68', bio: 'Open source contributor with 3 unfinished side projects.', lookingFor: ['Project partner', 'Study buddy'] },
+  },
+];
+
+export const YEARS   = ['1st year', '2nd year', '3rd year', 'Final year', 'PG'];
+export const LOOKING = ['Make friends', 'Project partner', 'Study buddy', 'Mentor / learn', 'Chai & chat', 'Startup ideas'];
+export const DEPTS   = ['B.Tech CSE', 'B.Tech ECE', 'BCA', 'BBA', 'MBA', 'B.Com', 'BA', 'Other'];
+export const OPEN_TO = ['Everyone', 'Same year', 'Seniors only', 'Juniors only'];

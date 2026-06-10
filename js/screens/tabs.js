@@ -1,5 +1,6 @@
 // js/screens/tabs.js
-import { navigate, getState } from '../helpers.js';
+import { navigate, getState, setState } from '../helpers.js';
+import API_URL from '../api.js';
 
 const SVGs = {
   discover: `<svg width="26" height="26" viewBox="0 0 26 26" fill="none">
@@ -24,39 +25,30 @@ const SVGs = {
 };
 
 export function tabBarHTML(active) {
-  const { pendingCount, unreadCounts } = getState();
-
-  // ── Sum up all unread message counts across all connections ──
-  const totalUnread = Object.values(unreadCounts || {}).reduce((sum, n) => sum + n, 0);
-
+  const { pendingCount = 0, unreadCount = 0 } = getState();
   const tabs = [
     { id: 'discover',  label: 'Discover', path: '/discover' },
-    { id: 'search',    label: 'Search',   path: '/search'  },
-    { id: 'chats',     label: 'Chats',    path: '/chats'   },
-    { id: 'requests',  label: 'Requests', path: '/requests'},
-    { id: 'profile',   label: 'Profile',  path: '/profile' },
+    { id: 'search',    label: 'Search',   path: '/search'   },
+    { id: 'chats',     label: 'Chats',    path: '/chats'    },
+    { id: 'requests',  label: 'Requests', path: '/requests' },
+    { id: 'profile',   label: 'Profile',  path: '/profile'  },
   ];
 
   return `
     <nav class="tab-bar">
-      ${tabs.map(t => {
-        // Requests badge: pending connection requests
-        const reqBadge = t.id === 'requests' && pendingCount > 0
-          ? `<span class="tab-badge">${pendingCount > 9 ? '9+' : pendingCount}</span>`
-          : '';
-        // Chats badge: total unread messages
-        const chatBadge = t.id === 'chats' && totalUnread > 0
-          ? `<span class="tab-badge">${totalUnread > 99 ? '99+' : totalUnread}</span>`
-          : '';
-        return `
-          <div class="tab-item ${t.id === active ? 'active' : ''}" data-nav="${t.path}">
-            <div class="tab-icon">
-              ${SVGs[t.id]}
-              ${reqBadge}${chatBadge}
-            </div>
-            <span class="tab-label">${t.label}</span>
-          </div>`;
-      }).join('')}
+      ${tabs.map(t => `
+        <div class="tab-item ${t.id === active ? 'active' : ''}" data-nav="${t.path}">
+          <div class="tab-icon">
+            ${SVGs[t.id]}
+            ${t.id === 'requests' && pendingCount > 0
+              ? `<span class="tab-badge">${pendingCount > 9 ? '9+' : pendingCount}</span>`
+              : ''}
+            ${t.id === 'chats' && unreadCount > 0
+              ? `<span class="tab-badge">${unreadCount > 9 ? '9+' : unreadCount}</span>`
+              : ''}
+          </div>
+          <span class="tab-label">${t.label}</span>
+        </div>`).join('')}
     </nav>`;
 }
 
@@ -66,4 +58,79 @@ export function bindTabs() {
       el.addEventListener('click', () => navigate(el.dataset.nav))
     );
   });
+
+  // Load real badge counts asynchronously
+  loadBadgeCounts();
+}
+
+// Fetch real pending requests count + unread message count
+// Updates state and re-renders badges without re-rendering whole page
+async function loadBadgeCounts() {
+  const token = localStorage.getItem('token');
+  if (!token) return;
+
+  const headers = { 'Authorization': `Bearer ${token}` };
+
+  try {
+    const [reqRes, unreadRes] = await Promise.all([
+      fetch(`${API_URL}/connections/requests`,    { headers }),
+      fetch(`${API_URL}/connections/unread-total`, { headers }),
+    ]);
+
+    let changed = false;
+
+    if (reqRes.ok) {
+      const reqs  = await reqRes.json();
+      const count = reqs.length;
+      if (getState().pendingCount !== count) {
+        setState({ pendingCount: count });
+        changed = true;
+      }
+    }
+
+    if (unreadRes.ok) {
+      const { total } = await unreadRes.json();
+      if (getState().unreadCount !== total) {
+        setState({ unreadCount: total });
+        changed = true;
+      }
+    }
+
+    // Update badges in DOM without full re-render
+    if (changed) updateBadgesInDOM();
+
+  } catch (_) {}
+}
+
+function updateBadgesInDOM() {
+  const { pendingCount = 0, unreadCount = 0 } = getState();
+
+  // Requests badge
+  const reqIcon = document.querySelector('[data-nav="/requests"] .tab-icon');
+  if (reqIcon) {
+    reqIcon.querySelector('.tab-badge')?.remove();
+    if (pendingCount > 0) {
+      const badge = document.createElement('span');
+      badge.className = 'tab-badge';
+      badge.textContent = pendingCount > 9 ? '9+' : pendingCount;
+      reqIcon.appendChild(badge);
+    }
+  }
+
+  // Chats badge
+  const chatIcon = document.querySelector('[data-nav="/chats"] .tab-icon');
+  if (chatIcon) {
+    chatIcon.querySelector('.tab-badge')?.remove();
+    if (unreadCount > 0) {
+      const badge = document.createElement('span');
+      badge.className = 'tab-badge';
+      badge.textContent = unreadCount > 9 ? '9+' : unreadCount;
+      chatIcon.appendChild(badge);
+    }
+  }
+}
+
+// Call this from outside (e.g. after receiving a new message via socket)
+export function refreshBadges() {
+  loadBadgeCounts();
 }
