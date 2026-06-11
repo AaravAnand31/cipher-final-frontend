@@ -1,10 +1,11 @@
 // js/screens/main.js — Discover · Chats · Chatroom · Requests
 import {
   navigate, back, getParams, getState, setState,
-  avatarHTML, tagHTML, timeAgo, toast, confirm,
+  avatarHTML, tagHTML, timeAgo, toast,
   LOOKING, YEARS,
 } from '../helpers.js';
 import { tabBarHTML, bindTabs, refreshBadges } from './tabs.js';
+import { initGlobalSocket } from '../app.js';
 import API_URL from '../api.js';
 
 function authHeaders() {
@@ -15,13 +16,10 @@ function authHeaders() {
 }
 
 /* ══════════════════════════════════════════════════
-   DISCOVER — real users, online status
+   DISCOVER
 ══════════════════════════════════════════════════ */
-let _users   = [];
-let _skip    = 0;
-let _done    = false;
-let _loading = false;
-let _filter  = { year: 'All', lookingFor: 'All' };
+let _users = [], _skip = 0, _done = false, _loading = false;
+let _filter = { year: 'All', lookingFor: 'All' };
 
 export function renderDiscover() {
   _users = []; _skip = 0; _done = false; _loading = false;
@@ -37,38 +35,33 @@ export function renderDiscover() {
           </div>
         </div>
         <div class="nav-right">
-          <button class="nav-btn" id="filter-btn" title="Filter">
+          <button class="nav-btn" id="filter-btn">
             <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
               <path d="M2 4h14M5 9h8M8 14h2" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
             </svg>
           </button>
         </div>
       </div>
-
       <div class="scroll-row" id="quick-filters" style="padding-top:12px;padding-bottom:4px">
         ${['All',...LOOKING.slice(0,4)].map(l =>
           `<button class="chip ${_filter.lookingFor===l?'selected':''}" data-lf="${l}">${l}</button>`
         ).join('')}
       </div>
-
       <div class="screen-body" id="feed-area" style="padding-top:8px">
         <div style="text-align:center;padding:80px 0" id="feed-loader">
           <div class="spinner"></div>
           <div style="font-size:13px;color:var(--label-secondary);margin-top:12px">Finding people…</div>
         </div>
       </div>
-
       ${tabBarHTML('discover')}
     </div>`;
 
-  bindTabs();
-  fetchUsers();
+  bindTabs(); fetchUsers();
 
   document.getElementById('feed-area').addEventListener('scroll', e => {
     const el = e.target;
     if (el.scrollTop + el.clientHeight >= el.scrollHeight - 300) fetchUsers();
   });
-
   document.getElementById('quick-filters').addEventListener('click', e => {
     const b = e.target.closest('[data-lf]'); if (!b) return;
     _filter.lookingFor = b.dataset.lf;
@@ -76,7 +69,6 @@ export function renderDiscover() {
     b.classList.add('selected');
     renderCards();
   });
-
   document.getElementById('filter-btn').addEventListener('click', openFilterSheet);
 }
 
@@ -89,21 +81,19 @@ async function fetchUsers() {
     if (!res.ok) throw new Error('Failed');
     const newUsers = await res.json();
     document.getElementById('feed-loader')?.remove();
-    if (!newUsers.length) { _done = true; }
+    if (!newUsers.length) _done = true;
     else { _users = [..._users, ...newUsers]; _skip += newUsers.length; }
     renderCards();
-  } catch (err) {
+  } catch {
     document.getElementById('feed-loader')?.remove();
     const area = document.getElementById('feed-area');
-    if (area && !_users.length) {
-      area.innerHTML = `
-        <div class="empty-state">
-          <div class="empty-icon">⚠️</div>
-          <div class="empty-title">Could not load users</div>
-          <div class="empty-body">Make sure your backend is running on port 5500</div>
-          <button class="btn btn-secondary-fill" style="margin-top:16px" onclick="location.reload()">Retry</button>
-        </div>`;
-    }
+    if (area && !_users.length) area.innerHTML = `
+      <div class="empty-state">
+        <div class="empty-icon">⚠️</div>
+        <div class="empty-title">Could not load users</div>
+        <div class="empty-body">Make sure your backend is running on port 5500</div>
+        <button class="btn btn-secondary-fill" style="margin-top:16px" onclick="location.reload()">Retry</button>
+      </div>`;
   }
   _loading = false;
 }
@@ -118,18 +108,16 @@ function visible() {
 
 function renderCards() {
   const area = document.getElementById('feed-area');
-  area.querySelectorAll('.discover-card').forEach(c => c.remove());
-  area.querySelector('.discover-empty')?.remove();
+  area.querySelectorAll('.discover-card,.discover-empty').forEach(c => c.remove());
   area.querySelector('#load-more-btn')?.remove();
 
   const list = visible();
-
   if (!list.length && _done) {
     area.innerHTML += `
       <div class="empty-state discover-empty">
         <div class="empty-icon">🎉</div>
         <div class="empty-title">You've seen everyone!</div>
-        <div class="empty-body">New students join every day — check back soon.</div>
+        <div class="empty-body">New students join every day.</div>
       </div>`;
     return;
   }
@@ -138,10 +126,8 @@ function renderCards() {
     const name  = u.username || u.name || 'Student';
     const tags  = (u.lookingFor||[]).map(tagHTML).join('');
     const pills = (u.interests||[]).slice(0,4).map(i => `<span class="interest-pill">${i}</span>`).join('');
-
-    const card = document.createElement('div');
-    card.className = 'discover-card';
-    card.dataset.uid = u._id;
+    const card  = document.createElement('div');
+    card.className = 'discover-card'; card.dataset.uid = u._id;
     card.innerHTML = `
       <div class="card-cover" style="${u.coverURL
         ? `background:url('${u.coverURL}') center/cover`
@@ -152,22 +138,22 @@ function renderCards() {
       <div class="card-avatar-row">
         <div style="position:relative;display:inline-block">
           <div class="card-avatar-border">${avatarHTML(name, u.photoURL, 62)}</div>
-          <!-- Online dot -->
-          <div style="position:absolute;bottom:3px;right:3px;width:14px;height:14px;
-            border-radius:50%;background:${u.isOnline ? '#34c759' : '#c7c7cc'};
+          <div data-online-uid="${u._id}" style="position:absolute;bottom:3px;right:3px;
+            width:14px;height:14px;border-radius:50%;
+            background:${u.isOnline?'#34c759':'#c7c7cc'};
             border:2.5px solid var(--bg-primary)"></div>
         </div>
       </div>
       <div class="card-body">
         <div class="card-name">${name}</div>
-        <div class="card-meta">${u.department || ''}</div>
+        <div class="card-meta">${u.department||''}</div>
         ${u.isOnline ? `<div style="font-size:12px;color:#34c759;margin-top:2px">● Online now</div>` : ''}
         ${tags ? `<div class="card-tags">${tags}</div>` : ''}
       </div>
       ${u.icebreaker||u.bio ? `<div class="card-icebreaker">"${u.icebreaker||u.bio}"</div>` : ''}
       ${pills ? `<div class="card-interests">${pills}</div>` : ''}
       <div class="card-actions">
-        <button class="card-btn-skip"    data-skip="${u._id}">✕ &nbsp;Pass</button>
+        <button class="card-btn-skip" data-skip="${u._id}">✕ &nbsp;Pass</button>
         <button class="card-btn-connect" data-connect="${u._id}">+ &nbsp;Connect</button>
       </div>`;
     area.appendChild(card);
@@ -175,47 +161,38 @@ function renderCards() {
 
   if (!_done) {
     const btn = document.createElement('button');
-    btn.id = 'load-more-btn';
-    btn.className = 'btn btn-secondary-fill';
+    btn.id = 'load-more-btn'; btn.className = 'btn btn-secondary-fill';
     btn.style.cssText = 'margin:8px 16px 24px;width:calc(100% - 32px)';
-    btn.textContent = 'Load more people';
-    btn.onclick = () => { btn.remove(); fetchUsers(); };
+    btn.textContent = 'Load more'; btn.onclick = () => { btn.remove(); fetchUsers(); };
     area.appendChild(btn);
   }
-
   bindFeedButtons();
 }
 
 function bindFeedButtons() {
-  document.querySelectorAll('[data-skip]').forEach(btn =>
-    btn.onclick = () => {
-      _users = _users.filter(u => u._id !== btn.dataset.skip);
-      document.querySelector(`.discover-card[data-uid="${btn.dataset.skip}"]`)?.remove();
+  document.querySelectorAll('[data-skip]').forEach(btn => btn.onclick = () => {
+    _users = _users.filter(u => u._id !== btn.dataset.skip);
+    document.querySelector(`.discover-card[data-uid="${btn.dataset.skip}"]`)?.remove();
+    if (!visible().length && _done) renderCards();
+  });
+  document.querySelectorAll('[data-connect]').forEach(btn => btn.onclick = async () => {
+    const uid = btn.dataset.connect;
+    btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>';
+    try {
+      const res = await fetch(`${API_URL}/connections/request`, {
+        method: 'POST', headers: authHeaders(), body: JSON.stringify({ toUserId: uid }),
+      });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.message);
+      toast('Request sent! 🤝', 'success');
+      _users = _users.filter(u => u._id !== uid);
+      document.querySelector(`.discover-card[data-uid="${uid}"]`)?.remove();
       if (!visible().length && _done) renderCards();
+    } catch (err) {
+      toast(err.message || 'Could not send request', 'error');
+      btn.disabled = false; btn.innerHTML = '+ &nbsp;Connect';
     }
-  );
-
-  document.querySelectorAll('[data-connect]').forEach(btn =>
-    btn.onclick = async () => {
-      const uid = btn.dataset.connect;
-      btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>';
-      try {
-        const res = await fetch(`${API_URL}/connections/request`, {
-          method: 'POST', headers: authHeaders(),
-          body: JSON.stringify({ toUserId: uid }),
-        });
-        const d = await res.json();
-        if (!res.ok) throw new Error(d.message);
-        toast('Request sent! 🤝', 'success');
-        _users = _users.filter(u => u._id !== uid);
-        document.querySelector(`.discover-card[data-uid="${uid}"]`)?.remove();
-        if (!visible().length && _done) renderCards();
-      } catch (err) {
-        toast(err.message || 'Could not send request', 'error');
-        btn.disabled = false; btn.innerHTML = '+ &nbsp;Connect';
-      }
-    }
-  );
+  });
 }
 
 function openFilterSheet() {
@@ -237,7 +214,6 @@ function openFilterSheet() {
       <button class="btn btn-primary" id="apply-filter" style="margin-top:24px">Apply</button>
     </div>`;
   document.getElementById('sheet-container').appendChild(overlay);
-
   overlay.querySelector('#f-year').onclick = e => {
     const b = e.target.closest('[data-y]'); if (!b) return;
     yr = b.dataset.y;
@@ -251,16 +227,14 @@ function openFilterSheet() {
     b.classList.add('selected');
   };
   overlay.querySelector('#apply-filter').onclick = () => {
-    _filter = { year: yr, lookingFor: lf };
-    overlay.remove();
-    renderCards();
+    _filter = { year: yr, lookingFor: lf }; overlay.remove(); renderCards();
   };
   overlay.onclick = e => { if (e.target === overlay) overlay.remove(); };
 }
 
 
 /* ══════════════════════════════════════════════════
-   CHATS — with unread badges and online status
+   CHATS — with unread per-chat badge + online dots
 ══════════════════════════════════════════════════ */
 export async function renderChats() {
   document.getElementById('app').innerHTML = `
@@ -289,7 +263,6 @@ export async function renderChats() {
       `${conns.length} conversation${conns.length !== 1 ? 's' : ''}`;
 
     const body = document.getElementById('chats-body');
-
     if (!conns.length) {
       body.innerHTML = `
         <div class="empty-state">
@@ -303,66 +276,57 @@ export async function renderChats() {
     body.innerHTML = `
       <div style="background:var(--bg-card);margin:16px;border-radius:var(--r-lg);overflow:hidden;box-shadow:var(--shadow-sm)">
         ${conns.map((c, i) => {
-          const u    = c.user;
+          const u = c.user;
           const name = u.username || u.name || 'Student';
           const hasUnread = c.unreadCount > 0;
-
           return `
             <div class="chat-row" data-chatid="${c.connectionId}"
               style="${i===conns.length-1?'border-bottom:none':''}">
-
-              <!-- Avatar with online dot -->
               <div style="position:relative;flex-shrink:0">
                 ${avatarHTML(name, u.photoURL, 50)}
-                <div style="position:absolute;bottom:0;right:0;
+                <div data-online-uid="${u._id}" style="position:absolute;bottom:0;right:0;
                   width:13px;height:13px;border-radius:50%;
-                  background:${u.isOnline ? '#34c759' : '#c7c7cc'};
+                  background:${u.isOnline?'#34c759':'#c7c7cc'};
                   border:2px solid var(--bg-card)"></div>
               </div>
-
-              <!-- Info -->
               <div class="chat-info">
-                <div class="chat-name" style="font-weight:${hasUnread?'700':'500'}">${name}</div>
+                <div class="chat-name" style="font-weight:${hasUnread?700:500}">${name}</div>
                 <div class="chat-preview" style="color:${hasUnread?'var(--label-primary)':'var(--label-secondary)'}">
-                  ${u.isOnline ? '🟢 Online' : u.department || ''}
+                  ${u.isOnline?'🟢 Online':(u.department||'')}
                 </div>
               </div>
-
-              <!-- Right side: time + unread badge -->
               <div class="chat-right" style="display:flex;flex-direction:column;align-items:flex-end;gap:6px">
                 <span class="chat-time">${timeAgo(c.connectedAt)}</span>
-                ${hasUnread ? `<span style="
-                  background:var(--accent);color:#fff;
-                  border-radius:10px;padding:2px 7px;
-                  font-size:11px;font-weight:700;min-width:20px;text-align:center
-                ">${c.unreadCount > 9 ? '9+' : c.unreadCount}</span>` : ''}
+                ${hasUnread ? `<span style="background:var(--accent);color:#fff;border-radius:10px;
+                  padding:2px 7px;font-size:11px;font-weight:700;min-width:20px;text-align:center">
+                  ${c.unreadCount > 9 ? '9+' : c.unreadCount}</span>` : ''}
               </div>
             </div>`;
         }).join('')}
       </div>`;
 
-    document.querySelectorAll('[data-chatid]').forEach(el =>
-      el.onclick = () => {
-        const conn = conns.find(c => c.connectionId === el.dataset.chatid);
-        if (conn) navigate('/chatroom', { chat: { chatId: conn.connectionId, otherUser: conn.user } });
-      }
-    );
+    document.querySelectorAll('[data-chatid]').forEach(el => el.onclick = () => {
+      const conn = conns.find(c => c.connectionId === el.dataset.chatid);
+      if (conn) navigate('/chatroom', { chat: { chatId: conn.connectionId, otherUser: conn.user } });
+    });
   } catch (err) {
     console.error(err);
     document.getElementById('chats-body').innerHTML = `
-      <div class="empty-state">
-        <div class="empty-icon">⚠️</div>
-        <div class="empty-title">Could not load chats</div>
-      </div>`;
+      <div class="empty-state"><div class="empty-icon">⚠️</div><div class="empty-title">Could not load chats</div></div>`;
   }
 }
 
 
 /* ══════════════════════════════════════════════════
-   CHATROOM — live chat, online status, read receipts,
-              typing indicator, delete message
+   CHATROOM
+   Fix 1: 3-dot menu (copy + delete) instead of ✕
+   Fix 2: Click header avatar/name → view profile
+   Fix 3: Live online/offline using global socket
+   Fix 4: Live unread badge via global socket
 ══════════════════════════════════════════════════ */
-let _socket = null;
+
+// Named socket handlers so we can remove them when leaving chatroom
+let _onNewMsg, _onDeleted, _onSeen, _onTyping, _onFriendOnline, _onFriendOffline;
 
 export function renderChatroom() {
   const { chat } = getParams();
@@ -373,6 +337,9 @@ export function renderChatroom() {
   const me   = getState().currentUser;
   const myId = me?.uid || me?._id || '';
 
+  // Tell global socket we're currently in this chat (suppresses badge)
+  window._currentChatId = chat.chatId;
+
   document.getElementById('app').innerHTML = `
     <div class="screen screen-enter">
       <div class="chatroom">
@@ -382,17 +349,23 @@ export function renderChatroom() {
               <path d="M9 1L1.5 8.5L9 16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>
           </button>
-          <div style="position:relative">
-            ${avatarHTML(name, u.photoURL, 36)}
-            <div id="online-dot" style="position:absolute;bottom:0;right:0;
-              width:10px;height:10px;border-radius:50%;
-              background:${u.isOnline?'#34c759':'#c7c7cc'};
-              border:2px solid var(--bg-primary)"></div>
-          </div>
-          <div class="chatroom-info">
-            <div class="chatroom-name">${name}</div>
-            <div class="chatroom-sub" id="chat-status">
-              ${u.isOnline ? 'Online' : u.lastSeen ? `Last seen ${timeAgoFull(u.lastSeen)}` : 'Offline'}
+
+          <!-- Clickable profile section -->
+          <div id="header-profile" style="display:flex;align-items:center;gap:10px;flex:1;cursor:pointer;min-width:0">
+            <div style="position:relative;flex-shrink:0">
+              ${avatarHTML(name, u.photoURL, 38)}
+              <!-- Online dot — uses data-online-uid for live updates -->
+              <div data-online-uid="${u._id}" id="header-online-dot" style="
+                position:absolute;bottom:0;right:0;
+                width:11px;height:11px;border-radius:50%;
+                background:${u.isOnline?'#34c759':'#c7c7cc'};
+                border:2px solid var(--bg-primary)"></div>
+            </div>
+            <div style="min-width:0">
+              <div class="chatroom-name" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${name}</div>
+              <div class="chatroom-sub" id="chat-status" style="color:${u.isOnline?'#34c759':'var(--label-secondary)'}">
+                ${u.isOnline ? 'Online' : u.lastSeen ? 'Last seen ' + _timeAgoShort(u.lastSeen) : 'Offline'}
+              </div>
             </div>
           </div>
         </div>
@@ -417,17 +390,22 @@ export function renderChatroom() {
       </div>
     </div>`;
 
+  // ── Back button ──────────────────────────────────────
   document.getElementById('back-btn').onclick = () => {
-    if (_socket) {
-      _socket.emit('typing',    { connectionId: chat.chatId, isTyping: false });
-      _socket.emit('leave_chat', chat.chatId);
-    }
+    _leaveChatroom(chat.chatId);
     back();
   };
 
-  loadHistory(chat.chatId, myId);
-  connectSocket(chat, myId, name);
+  // ── Click header → view profile ──────────────────────
+  document.getElementById('header-profile').onclick = () => {
+    navigate('/view-profile', { userId: u._id, user: u });
+  };
 
+  // ── Load history + connect socket ────────────────────
+  _loadHistory(chat.chatId, myId);
+  _connectChatroomSocket(chat, myId, name);
+
+  // ── Input handling ───────────────────────────────────
   const input   = document.getElementById('msg-input');
   const sendBtn = document.getElementById('send-btn');
   let typingTimer = null;
@@ -436,52 +414,66 @@ export function renderChatroom() {
     input.style.height = 'auto';
     input.style.height = Math.min(input.scrollHeight, 120) + 'px';
     sendBtn.disabled = !input.value.trim();
-    if (_socket) {
-      _socket.emit('typing', { connectionId: chat.chatId, isTyping: true });
+    const sock = window._cipherSocket;
+    if (sock) {
+      sock.emit('typing', { connectionId: chat.chatId, isTyping: true });
       clearTimeout(typingTimer);
       typingTimer = setTimeout(() =>
-        _socket?.emit('typing', { connectionId: chat.chatId, isTyping: false }), 1500);
+        sock?.emit('typing', { connectionId: chat.chatId, isTyping: false }), 1500);
     }
   };
 
-  input.onkeydown = e => {
-    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendBtn.click(); }
-  };
+  input.onkeydown = e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendBtn.click(); } };
 
   sendBtn.onclick = () => {
     const text = input.value.trim();
-    if (!text || !_socket) return;
-    _socket.emit('send_message', { connectionId: chat.chatId, senderUserId: myId, text });
-    _socket.emit('typing', { connectionId: chat.chatId, isTyping: false });
+    const sock = window._cipherSocket;
+    if (!text || !sock) { if (!sock) toast('Connection issue — try refreshing', 'error'); return; }
+    sock.emit('send_message', { connectionId: chat.chatId, senderUserId: myId, text });
+    sock.emit('typing', { connectionId: chat.chatId, isTyping: false });
     input.value = ''; input.style.height = 'auto'; sendBtn.disabled = true;
     clearTimeout(typingTimer);
   };
 }
 
-async function loadHistory(connectionId, myId) {
+function _leaveChatroom(chatId) {
+  window._currentChatId = null;
+  const sock = window._cipherSocket;
+  if (!sock) return;
+  sock.emit('leave_chat', chatId);
+  sock.emit('typing', { connectionId: chatId, isTyping: false });
+  // Remove chatroom-specific listeners
+  if (_onNewMsg)        sock.off('new_message',    _onNewMsg);
+  if (_onDeleted)       sock.off('message_deleted', _onDeleted);
+  if (_onSeen)          sock.off('messages_seen',   _onSeen);
+  if (_onTyping)        sock.off('user_typing',      _onTyping);
+  if (_onFriendOnline)  sock.off('friend_online',    _onFriendOnline);
+  if (_onFriendOffline) sock.off('friend_offline',   _onFriendOffline);
+  _onNewMsg = _onDeleted = _onSeen = _onTyping = _onFriendOnline = _onFriendOffline = null;
+}
+
+async function _loadHistory(connectionId, myId) {
   try {
     const res = await fetch(`${API_URL}/messages/${connectionId}`, { headers: authHeaders() });
     if (!res.ok) throw new Error('Failed');
     const msgs = await res.json();
 
     document.getElementById('msgs-loader')?.remove();
+    const el = document.getElementById('msgs');
 
     if (!msgs.length) {
-      const el = document.getElementById('msgs');
       if (el) el.innerHTML = `
         <div style="text-align:center;padding:60px 16px;color:var(--label-secondary);font-size:14px;line-height:1.6">
           👋 You're connected!<br>Say something to start the conversation.
         </div>`;
     } else {
-      msgs.forEach(m => appendMessage(m, myId));
+      msgs.forEach(m => _appendMsg(m, myId));
     }
 
     // Mark all as seen
     await fetch(`${API_URL}/messages/${connectionId}/seen`, {
       method: 'POST', headers: authHeaders(),
     });
-
-    // Refresh tab badge after marking seen
     refreshBadges();
 
   } catch (err) {
@@ -490,126 +482,257 @@ async function loadHistory(connectionId, myId) {
   }
 }
 
-function connectSocket(chat, myId, otherName) {
-  if (!window.io) { console.warn('Socket.io not loaded'); return; }
-  if (_socket) { _socket.disconnect(); _socket = null; }
+function _connectChatroomSocket(chat, myId, otherName) {
+  // Make sure global socket is live
+  initGlobalSocket();
 
-  _socket = window.io('https://cipher-425d.onrender.com');
+  const sock = window._cipherSocket;
+  if (!sock) { console.warn('No global socket'); return; }
 
-  _socket.on('connect', () => {
-    _socket.emit('user_online', myId);
-    _socket.emit('join_chat', chat.chatId);
-  });
+  // Join this chat room
+  sock.emit('join_chat', chat.chatId);
 
-  _socket.on('new_message', msg => {
+  // ── New message ──────────────────────────────────────
+  _onNewMsg = (msg) => {
+    document.querySelector('#msgs [style*="You\'re connected"]')?.remove();
     document.getElementById('msgs-loader')?.remove();
-    const placeholder = document.querySelector('#msgs [style*="You\'re connected"]');
-    placeholder?.remove();
-    appendMessage(msg, myId);
+    _appendMsg(msg, myId);
 
-    // Auto mark as seen if I'm in this chat
-    if (msg.senderUser?._id !== myId) {
+    // Mark seen if message is from the other person
+    const senderId = msg.senderUser?._id || msg.senderUser || '';
+    if (senderId.toString() !== myId.toString()) {
       fetch(`${API_URL}/messages/${chat.chatId}/seen`, {
         method: 'POST', headers: authHeaders(),
       }).then(() => refreshBadges());
     }
-  });
+  };
 
-  _socket.on('message_deleted', ({ messageId }) => {
+  // ── Message deleted ──────────────────────────────────
+  _onDeleted = ({ messageId }) => {
     const el = document.getElementById(`msg-${messageId}`);
     if (el) {
-      el.querySelector('.bubble').innerHTML =
-        `<span style="font-style:italic;opacity:0.5;font-size:13px">This message was deleted</span>`;
-      el.querySelector('.msg-delete-btn')?.remove();
+      el.innerHTML = `
+        <div class="msg-row them">
+          <div class="bubble them" style="opacity:0.5;font-style:italic;font-size:13px">
+            This message was deleted
+          </div>
+        </div>`;
     }
-  });
+  };
 
-  _socket.on('messages_seen', ({ seenBy }) => {
+  // ── Read receipts ────────────────────────────────────
+  _onSeen = ({ seenBy }) => {
     if (seenBy === myId) return;
-    // Update all my messages to show ✓✓
     document.querySelectorAll('.msg-tick').forEach(el => {
-      el.textContent = '✓✓';
-      el.style.color = '#34c759';
+      el.textContent = '✓✓'; el.style.color = '#34c759';
     });
-  });
+  };
 
-  _socket.on('user_typing', ({ userId, isTyping }) => {
+  // ── Typing indicator ─────────────────────────────────
+  _onTyping = ({ userId, isTyping }) => {
     const sub = document.getElementById('chat-status');
     if (!sub || userId === myId) return;
     if (isTyping) {
-      sub.innerHTML = `<span style="color:var(--accent)">typing…</span>`;
+      sub.style.color = 'var(--accent)';
+      sub.textContent = 'typing…';
     } else {
-      const u = chat.otherUser;
-      sub.innerHTML = u.isOnline ? 'Online' : u.lastSeen ? `Last seen ${timeAgoFull(u.lastSeen)}` : 'Offline';
+      sub.style.color = chat.otherUser.isOnline ? '#34c759' : 'var(--label-secondary)';
+      sub.textContent = chat.otherUser.isOnline ? 'Online'
+        : chat.otherUser.lastSeen ? 'Last seen ' + _timeAgoShort(chat.otherUser.lastSeen) : 'Offline';
     }
-  });
+  };
 
-  _socket.on('friend_online', ({ userId }) => {
-    if (userId !== (chat.otherUser._id || chat.otherUser.uid)) return;
-    const sub = document.getElementById('chat-status');
-    if (sub) { sub.textContent = 'Online'; sub.style.color = '#34c759'; }
-    const dot = document.getElementById('online-dot');
-    if (dot) dot.style.background = '#34c759';
+  // ── Friend came online ───────────────────────────────
+  _onFriendOnline = ({ userId }) => {
+    if (userId.toString() !== (chat.otherUser._id||'').toString()) return;
     chat.otherUser.isOnline = true;
-  });
-
-  _socket.on('friend_offline', ({ userId, lastSeen }) => {
-    if (userId !== (chat.otherUser._id || chat.otherUser.uid)) return;
     const sub = document.getElementById('chat-status');
-    if (sub) { sub.textContent = `Last seen ${timeAgoFull(lastSeen)}`; sub.style.color = ''; }
-    const dot = document.getElementById('online-dot');
-    if (dot) dot.style.background = '#c7c7cc';
-    chat.otherUser.isOnline = false;
-  });
+    const dot = document.getElementById('header-online-dot');
+    if (sub) { sub.textContent = 'Online'; sub.style.color = '#34c759'; }
+    if (dot) dot.style.background = '#34c759';
+  };
 
-  _socket.on('disconnect', () => { _socket = null; });
+  // ── Friend went offline ──────────────────────────────
+  _onFriendOffline = ({ userId, lastSeen }) => {
+    if (userId.toString() !== (chat.otherUser._id||'').toString()) return;
+    chat.otherUser.isOnline = false;
+    chat.otherUser.lastSeen = lastSeen;
+    const sub = document.getElementById('chat-status');
+    const dot = document.getElementById('header-online-dot');
+    if (sub) { sub.textContent = 'Last seen ' + _timeAgoShort(lastSeen); sub.style.color = 'var(--label-secondary)'; }
+    if (dot) dot.style.background = '#c7c7cc';
+  };
+
+  sock.on('new_message',    _onNewMsg);
+  sock.on('message_deleted', _onDeleted);
+  sock.on('messages_seen',   _onSeen);
+  sock.on('user_typing',     _onTyping);
+  sock.on('friend_online',   _onFriendOnline);
+  sock.on('friend_offline',  _onFriendOffline);
 }
 
-function appendMessage(m, myId) {
+function _appendMsg(m, myId) {
   const el = document.getElementById('msgs');
   if (!el) return;
 
   const senderId = m.senderUser?._id || m.senderUser || '';
   const isMe     = senderId.toString() === myId.toString();
-  const timeStr  = new Date(m.createdAt || Date.now()).toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' });
+  const timeStr  = new Date(m.createdAt || Date.now())
+    .toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const msgId    = m._id?.toString() || '';
 
   const wrapper = document.createElement('div');
-  wrapper.id = `msg-${m._id}`;
+  wrapper.id = `msg-${msgId}`;
 
   if (m.isDeleted) {
     wrapper.innerHTML = `
-      <div class="msg-row ${isMe ? 'me' : 'them'}">
-        <div class="bubble ${isMe ? 'me' : 'them'}" style="opacity:0.5;font-style:italic;font-size:13px">
+      <div class="msg-row ${isMe?'me':'them'}">
+        <div class="bubble ${isMe?'me':'them'}" style="opacity:0.5;font-style:italic;font-size:13px">
           This message was deleted
         </div>
       </div>`;
   } else {
     wrapper.innerHTML = `
-      <div class="msg-row ${isMe ? 'me' : 'them'}">
-        <div class="bubble ${isMe ? 'me' : 'them'}">${esc(m.text)}</div>
-        ${isMe ? `<button class="msg-delete-btn" data-msgid="${m._id}" title="Delete">✕</button>` : ''}
+      <div class="msg-row ${isMe?'me':'them'}">
+        ${isMe ? `
+          <!-- 3-dot menu button — outside the bubble, to the left of it -->
+          <button class="msg-menu-btn" data-msgid="${msgId}" data-text="${encodeURIComponent(m.text)}"
+            style="background:none;border:none;cursor:pointer;padding:4px 6px;
+            color:var(--label-tertiary);font-size:18px;line-height:1;
+            align-self:center;flex-shrink:0;border-radius:6px;
+            opacity:0.5;transition:opacity .15s"
+            onmouseover="this.style.opacity='1'"
+            onmouseout="this.style.opacity='0.5'">⋮</button>
+        ` : ''}
+        <div class="bubble ${isMe?'me':'them'}">${esc(m.text)}</div>
+        ${!isMe ? `
+          <!-- For their messages: 3-dot on the right -->
+          <button class="msg-menu-btn" data-msgid="${msgId}" data-text="${encodeURIComponent(m.text)}" data-theirs="1"
+            style="background:none;border:none;cursor:pointer;padding:4px 6px;
+            color:var(--label-tertiary);font-size:18px;line-height:1;
+            align-self:center;flex-shrink:0;border-radius:6px;
+            opacity:0.5;transition:opacity .15s"
+            onmouseover="this.style.opacity='1'"
+            onmouseout="this.style.opacity='0.5'">⋮</button>
+        ` : ''}
       </div>
-      <div class="msg-time-row ${isMe ? 'me' : 'them'}">
+      <div class="msg-time-row ${isMe?'me':'them'}">
         ${timeStr}
-        ${isMe ? `<span class="msg-tick" style="margin-left:4px;font-size:10px;color:${m.seen?'#34c759':'var(--label-tertiary)'}">
-          ${m.seen ? '✓✓' : '✓'}</span>` : ''}
+        ${isMe ? `<span class="msg-tick" style="margin-left:4px;font-size:10px;
+          color:${m.seen?'#34c759':'var(--label-tertiary)'}">
+          ${m.seen?'✓✓':'✓'}</span>` : ''}
       </div>`;
   }
 
   el.appendChild(wrapper);
   el.scrollTop = el.scrollHeight;
 
-  // Bind delete button
-  wrapper.querySelector('.msg-delete-btn')?.addEventListener('click', async () => {
-    const ok = await confirm('Delete message?', 'This message will be removed for everyone.');
-    if (!ok) return;
-    try {
-      const res = await fetch(`${API_URL}/messages/${m._id}`, {
-        method: 'DELETE', headers: authHeaders(),
-      });
-      if (!res.ok) throw new Error('Failed');
-    } catch { toast('Could not delete', 'error'); }
+  // Bind 3-dot menu
+  wrapper.querySelectorAll('.msg-menu-btn').forEach(btn =>
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      _showMsgMenu(e, btn, isMe && !btn.dataset.theirs);
+    })
+  );
+}
+
+// ── Message context menu ─────────────────────────────────
+function _showMsgMenu(e, btn, canDelete) {
+  // Remove any existing menu
+  document.getElementById('msg-ctx-menu')?.remove();
+
+  const msgId = btn.dataset.msgid;
+  const text  = decodeURIComponent(btn.dataset.text || '');
+
+  const menu = document.createElement('div');
+  menu.id = 'msg-ctx-menu';
+  menu.style.cssText = `
+    position:fixed;z-index:9999;
+    background:var(--bg-card);
+    border-radius:12px;
+    box-shadow:0 8px 30px rgba(0,0,0,.18);
+    overflow:hidden;
+    min-width:150px;
+    border:0.5px solid var(--separator);
+    animation:fadeIn .12s ease;
+  `;
+
+  menu.innerHTML = `
+    <div id="mctx-copy" style="padding:13px 18px;cursor:pointer;font-size:15px;
+      color:var(--label-primary);display:flex;align-items:center;gap:10px;
+      border-bottom:${canDelete?'0.5px solid var(--separator)':0}">
+      <span>📋</span> Copy
+    </div>
+    ${canDelete ? `
+      <div id="mctx-delete" style="padding:13px 18px;cursor:pointer;font-size:15px;
+        color:var(--red);display:flex;align-items:center;gap:10px">
+        <span>🗑️</span> Delete
+      </div>` : ''}
+  `;
+
+  // Position near button
+  const rect = btn.getBoundingClientRect();
+  const menuTop  = Math.min(rect.bottom + 4, window.innerHeight - 120);
+  const menuLeft = Math.max(rect.left - 80, 8);
+  menu.style.top  = menuTop  + 'px';
+  menu.style.left = menuLeft + 'px';
+  document.body.appendChild(menu);
+
+  // Copy
+  menu.querySelector('#mctx-copy')?.addEventListener('click', () => {
+    navigator.clipboard?.writeText(text).then(() => toast('Copied!')).catch(() => {
+      // Fallback for older browsers
+      const ta = document.createElement('textarea');
+      ta.value = text; document.body.appendChild(ta);
+      ta.select(); document.execCommand('copy'); ta.remove();
+      toast('Copied!');
+    });
+    menu.remove();
   });
+
+  // Delete
+  menu.querySelector('#mctx-delete')?.addEventListener('click', async () => {
+    menu.remove();
+    // Show inline confirm
+    const el = document.getElementById(`msg-${msgId}`);
+    if (!el) return;
+
+    // Replace with confirmation prompt briefly
+    const oldHTML = el.innerHTML;
+    el.innerHTML = `
+      <div class="msg-row me" style="gap:8px;align-items:center;justify-content:flex-end">
+        <button id="cancel-del" style="background:var(--fill-secondary);border:none;border-radius:8px;
+          padding:7px 14px;cursor:pointer;font-size:13px;color:var(--label-secondary)">Cancel</button>
+        <button id="confirm-del" style="background:var(--red);border:none;border-radius:8px;
+          padding:7px 14px;cursor:pointer;font-size:13px;color:#fff;font-weight:600">Delete for all</button>
+      </div>`;
+
+    document.getElementById('cancel-del').onclick = () => { el.innerHTML = oldHTML; };
+    document.getElementById('confirm-del').onclick = async () => {
+      try {
+        const res = await fetch(`${API_URL}/messages/${msgId}`, {
+          method: 'DELETE', headers: authHeaders(),
+        });
+        if (!res.ok) {
+          const d = await res.json().catch(() => ({}));
+          throw new Error(d.message || 'Failed');
+        }
+        // Server broadcasts message_deleted via socket — UI updates via socket handler
+      } catch (err) {
+        console.error('Delete error:', err);
+        toast('Could not delete: ' + (err.message || 'Unknown error'), 'error');
+        el.innerHTML = oldHTML;
+      }
+    };
+  });
+
+  // Dismiss on click outside
+  setTimeout(() => {
+    document.addEventListener('click', function dismiss() {
+      menu.remove();
+      document.removeEventListener('click', dismiss);
+    });
+  }, 10);
 }
 
 function esc(s) {
@@ -618,14 +741,15 @@ function esc(s) {
     .replace(/\n/g,'<br>');
 }
 
-function timeAgoFull(date) {
+function _timeAgoShort(date) {
+  if (!date) return '';
   const diff = Date.now() - new Date(date).getTime();
   const m = Math.floor(diff / 60000);
-  if (m < 1)  return 'just now';
+  if (m < 1) return 'just now';
   if (m < 60) return `${m}m ago`;
   const h = Math.floor(m / 60);
   if (h < 24) return `${h}h ago`;
-  return `${Math.floor(h / 24)}d ago`;
+  return `${Math.floor(h/24)}d ago`;
 }
 
 
@@ -655,14 +779,11 @@ export async function renderRequests() {
     if (!res.ok) throw new Error('Failed');
     const requests = await res.json();
 
-    // Update pending count in state
     setState({ pendingCount: requests.length });
-
     document.getElementById('req-sub').textContent =
       requests.length ? `${requests.length} pending` : 'All caught up';
 
     const area = document.getElementById('req-area');
-
     if (!requests.length) {
       area.innerHTML = `
         <div class="empty-state">
@@ -674,7 +795,7 @@ export async function renderRequests() {
     }
 
     area.innerHTML = requests.map(req => {
-      const u    = req.fromUser;
+      const u = req.fromUser;
       const name = u.username || u.name || 'Student';
       const tags = (u.lookingFor||[]).map(tagHTML).join('');
       return `
@@ -682,7 +803,7 @@ export async function renderRequests() {
           <div style="display:flex;gap:12px;align-items:center">
             <div style="position:relative;flex-shrink:0">
               ${avatarHTML(name, u.photoURL, 52)}
-              <div style="position:absolute;bottom:1px;right:1px;
+              <div data-online-uid="${u._id}" style="position:absolute;bottom:1px;right:1px;
                 width:12px;height:12px;border-radius:50%;
                 background:${u.isOnline?'#34c759':'#c7c7cc'};
                 border:2px solid var(--bg-card)"></div>
@@ -690,11 +811,11 @@ export async function renderRequests() {
             <div style="flex:1;min-width:0">
               <div style="font-size:16px;font-weight:600;color:var(--label-primary)">${name}</div>
               <div style="font-size:13px;color:var(--label-secondary);margin-top:2px">${u.department||''} · ${u.year||''}</div>
-              ${u.isOnline ? `<div style="font-size:12px;color:#34c759;margin-top:2px">● Online now</div>` : ''}
-              ${u.bio ? `<div style="font-size:13px;color:var(--label-secondary);margin-top:4px">"${u.bio}"</div>` : ''}
+              ${u.isOnline?`<div style="font-size:12px;color:#34c759;margin-top:2px">● Online now</div>`:''}
+              ${u.bio?`<div style="font-size:13px;color:var(--label-secondary);margin-top:4px">"${u.bio}"</div>`:''}
             </div>
           </div>
-          ${tags ? `<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:10px">${tags}</div>` : ''}
+          ${tags?`<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:10px">${tags}</div>`:''}
           <div class="req-actions">
             <button class="req-btn-decline" data-action="reject" data-conn-id="${req._id}">Decline</button>
             <button class="req-btn-accept"  data-action="accept" data-conn-id="${req._id}">✓ Accept</button>
@@ -702,48 +823,34 @@ export async function renderRequests() {
         </div>`;
     }).join('');
 
-    document.querySelectorAll('[data-action]').forEach(btn =>
-      btn.onclick = async () => {
-        const connId = btn.dataset.connId;
-        const action = btn.dataset.action;
-        const card   = btn.closest('.request-card');
-        btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>';
-
-        try {
-          const r2 = await fetch(`${API_URL}/connections/${action}`, {
-            method: 'POST', headers: authHeaders(),
-            body: JSON.stringify({ connectionId: connId }),
-          });
-          if (!r2.ok) throw new Error('Failed');
-
-          toast(action === 'accept' ? 'Connected! 🎉 Open Chats to say hi' : 'Request declined', 'success');
-          card?.remove();
-
-          const remaining = document.querySelectorAll('.request-card').length;
-          const sub = document.getElementById('req-sub');
-          if (sub) sub.textContent = remaining ? `${remaining} pending` : 'All caught up';
-          setState({ pendingCount: remaining });
-
-          if (!remaining) {
-            document.getElementById('req-area').innerHTML = `
-              <div class="empty-state">
-                <div class="empty-icon">✅</div>
-                <div class="empty-title">All caught up!</div>
-              </div>`;
-          }
-        } catch {
-          toast('Something went wrong', 'error');
-          btn.disabled = false;
-          btn.textContent = action === 'accept' ? '✓ Accept' : 'Decline';
-        }
+    document.querySelectorAll('[data-action]').forEach(btn => btn.onclick = async () => {
+      const connId = btn.dataset.connId;
+      const action = btn.dataset.action;
+      const card   = btn.closest('.request-card');
+      btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>';
+      try {
+        const r2 = await fetch(`${API_URL}/connections/${action}`, {
+          method: 'POST', headers: authHeaders(),
+          body: JSON.stringify({ connectionId: connId }),
+        });
+        if (!r2.ok) throw new Error('Failed');
+        toast(action==='accept' ? 'Connected! 🎉 Open Chats to say hi' : 'Request declined', 'success');
+        card?.remove();
+        const remaining = document.querySelectorAll('.request-card').length;
+        const sub = document.getElementById('req-sub');
+        if (sub) sub.textContent = remaining ? `${remaining} pending` : 'All caught up';
+        setState({ pendingCount: remaining });
+        if (!remaining) document.getElementById('req-area').innerHTML = `
+          <div class="empty-state"><div class="empty-icon">✅</div><div class="empty-title">All caught up!</div></div>`;
+      } catch {
+        toast('Something went wrong', 'error');
+        btn.disabled = false;
+        btn.textContent = action==='accept' ? '✓ Accept' : 'Decline';
       }
-    );
+    });
   } catch (err) {
     console.error(err);
     document.getElementById('req-area').innerHTML = `
-      <div class="empty-state">
-        <div class="empty-icon">⚠️</div>
-        <div class="empty-title">Could not load requests</div>
-      </div>`;
+      <div class="empty-state"><div class="empty-icon">⚠️</div><div class="empty-title">Could not load requests</div></div>`;
   }
 }
