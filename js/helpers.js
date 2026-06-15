@@ -155,80 +155,8 @@ export const spinnerDarkHTML = `<span class="spinner spinner-dark"></span>`;
 
 /* ═══════════ DUMMY DATA ═══════════ */
 
-export const DUMMY_USER = {
-  uid: 'me-001',
-  name: 'Aarav Anand',
-  email: 'aarav.anand@christuniversity.in',
-  year: '2nd year',
-  department: 'B.Tech CSE',
-  bio: 'Builder by day, chess nerd by night. I love hackathons and think every problem has an elegant solution.',
-  icebreaker: 'The one thing I want to build at college is a startup that actually ships.',
-  lookingFor: ['Project partner', 'Startup ideas', 'Make friends'],
-  interests: ['Chess', 'Coding', 'Badminton', 'Music', 'Design'],
-  openTo: ['Everyone'],
-  photoURL: '',
-  coverURL: '',
-  connections: ['u2', 'u3'],
-  profileDone: true,
-};
 
-export const DUMMY_PEOPLE = [
-  {
-    uid: 'u1',
-    name: 'Priya Sharma',
-    year: '2nd year', department: 'BBA',
-    bio: 'Marketing enthusiast who loves brand strategy and consumer psychology.',
-    icebreaker: 'I once pitched a business idea to 300 people and it actually worked.',
-    lookingFor: ['Make friends', 'Startup ideas'],
-    interests: ['Marketing', 'Yoga', 'Books', 'Photography'],
-    photoURL: 'https://i.pravatar.cc/150?img=47',
-    coverURL: '',
-  },
-  {
-    uid: 'u2',
-    name: 'Rohan Verma',
-    year: '3rd year', department: 'B.Tech ECE',
-    bio: 'Hardware hacker obsessed with IoT and embedded systems. Also make lo-fi beats.',
-    icebreaker: 'I built a smart mirror for my room and now I cant use a normal one.',
-    lookingFor: ['Project partner', 'Study buddy'],
-    interests: ['IoT', 'Music Production', 'Cycling', 'Coffee'],
-    photoURL: 'https://i.pravatar.cc/150?img=12',
-    coverURL: '',
-  },
-  {
-    uid: 'u3',
-    name: 'Ananya Joshi',
-    year: '1st year', department: 'BCA',
-    bio: 'First-gen programmer, design geek, and chronic over-thinker (in a good way).',
-    icebreaker: 'My first app had 3 users — my mom, dad, and me.',
-    lookingFor: ['Mentor / learn', 'Make friends', 'Chai & chat'],
-    interests: ['UI Design', 'K-Drama', 'Sketching', 'Python'],
-    photoURL: 'https://i.pravatar.cc/150?img=5',
-    coverURL: '',
-  },
-  {
-    uid: 'u4',
-    name: 'Karan Mehta',
-    year: 'Final year', department: 'MBA',
-    bio: 'Aspiring VC. I read 40 startup case studies last semester. Looking to build my network.',
-    icebreaker: 'I can tell you which YC startups will fail in 5 minutes flat.',
-    lookingFor: ['Startup ideas', 'Project partner'],
-    interests: ['Finance', 'Startups', 'Running', 'Podcasts'],
-    photoURL: 'https://i.pravatar.cc/150?img=33',
-    coverURL: '',
-  },
-  {
-    uid: 'u5',
-    name: 'Ishaan Gupta',
-    year: '2nd year', department: 'B.Tech CSE',
-    bio: 'Open source contributor. I have 3 unfinished side projects and I\'m proud of all of them.',
-    icebreaker: 'My GitHub streak is longer than my last relationship.',
-    lookingFor: ['Project partner', 'Study buddy', 'Make friends'],
-    interests: ['Open Source', 'Gaming', 'Basketball', 'Linux'],
-    photoURL: 'https://i.pravatar.cc/150?img=68',
-    coverURL: '',
-  },
-];
+
 
 export const DUMMY_CHATS = [
   {
