@@ -155,9 +155,6 @@ export const spinnerDarkHTML = `<span class="spinner spinner-dark"></span>`;
 
 /* ═══════════ DUMMY DATA ═══════════ */
 
-
-
-
 export const DUMMY_CHATS = [
   {
     chatId: 'chat-1',

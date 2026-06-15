@@ -2,7 +2,6 @@
 import {
   navigate, back, getState, setState,
   avatarHTML, tagHTML, toast, confirm,
-  DUMMY_USER, LOOKING, YEARS, OPEN_TO, DEPTS,
 } from '../helpers.js';
 import { tabBarHTML, bindTabs } from './tabs.js';
 import { initGlobalSocket } from '../app.js';
