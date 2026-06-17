@@ -207,6 +207,16 @@ export const DUMMY_REQUESTS = [
   },
 ];
 
+// Fallback user shown on profile screen before real data loads
+export const DUMMY_USER = {
+  uid: '', name: '', email: '', year: '', department: '',
+  bio: '', icebreaker: '', interests: [], lookingFor: [],
+  openTo: ['Everyone'], photoURL: '', coverURL: '', profileDone: false,
+};
+
+// Fallback people list for search screen before real data loads
+export const DUMMY_PEOPLE = [];
+
 export const YEARS   = ['1st year', '2nd year', '3rd year', 'Final year', 'PG'];
 export const LOOKING = ['Make friends', 'Project partner', 'Study buddy', 'Mentor / learn', 'Chai & chat', 'Startup ideas'];
 export const DEPTS   = ['B.Tech CSE', 'B.Tech ECE', 'BCA', 'BBA', 'MBA', 'B.Com', 'BA', 'Other'];

@@ -67,7 +67,7 @@ export function initGlobalSocket() {
         return;
     }
 
-    window._cipherSocket = window.io('http://localhost:5500');
+    window._cipherSocket = window.io('https://cipher-425d.onrender.com');
 
     window._cipherSocket.on('connect', () => {
         console.log('Global socket connected, announcing user_online:', myId);
