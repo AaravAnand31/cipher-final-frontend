@@ -1,6 +1,6 @@
 // js/screens/profile.js
 import {
-  navigate, back, getState, setState,
+  navigate, back, getState, setState, getParams,
   avatarHTML, tagHTML, toast, confirm,
   DUMMY_USER, LOOKING, YEARS, OPEN_TO, DEPTS,
 } from '../helpers.js';
@@ -144,10 +144,10 @@ async function loadProfileStats() {
    Accessed by tapping avatar/name in chatroom header
 ══════════════════════════════════════════════════ */
 export async function renderViewProfile() {
-  const params = getState().params || {};
+  const params = getParams() || {};
   const userId = params.userId;
 
-  // If user data was passed directly (faster), use it; otherwise fetch
+  // If user data was passed directly (faster), use it as a fallback
   let user = params.user || null;
 
   document.getElementById('app').innerHTML = `
@@ -172,12 +172,21 @@ export async function renderViewProfile() {
 
   document.getElementById('back-btn').addEventListener('click', back);
 
-  // Fetch full user if not passed or stale
+  // Fetch the full, fresh profile from backend if we have an ID
+  let fetchError = null;
   if (userId) {
     try {
       const res = await fetch(`${API_URL}/users/${userId}`, { headers: authHeaders() });
-      if (res.ok) user = await res.json();
-    } catch (_) {}
+      if (res.ok) {
+        user = await res.json();
+      } else {
+        fetchError = `Server returned ${res.status}`;
+      }
+    } catch (err) {
+      fetchError = err.message || 'Network error';
+    }
+  } else {
+    fetchError = 'No user ID was provided to this screen';
   }
 
   if (!user) {
@@ -185,9 +194,11 @@ export async function renderViewProfile() {
       <div class="empty-state">
         <div class="empty-icon">👤</div>
         <div class="empty-title">Could not load profile</div>
+        <div class="empty-body">${fetchError || 'Unknown error'}</div>
       </div>`;
     return;
   }
+
 
   const name = user.username || user.name || 'Student';
   const tags = (user.lookingFor||[]).map(tagHTML).join('');
