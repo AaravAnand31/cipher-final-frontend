@@ -356,18 +356,10 @@ export function renderChatroom() {
                     <div id="header-profile" style="display:flex;align-items:center;gap:10px;flex:1;cursor:pointer;min-width:0">
                         <div style="position:relative;flex-shrink:0">
                             ${avatarHTML(name, u.photoURL, 38)}
-                            <div data-online-uid="${u._id}" id="header-dot" style="
-                                position:absolute;bottom:0;right:0;
-                                width:11px;height:11px;border-radius:50%;
-                                background:${u.isOnline?'#34c759':'#c7c7cc'};
-                                border:2px solid var(--bg-primary)"></div>
                         </div>
                         <div style="min-width:0">
                             <div class="chatroom-name">${name}</div>
-                            <div class="chatroom-sub" id="chat-status"
-                                style="color:${u.isOnline?'#34c759':'var(--label-secondary)'}">
-                                ${u.isOnline ? 'Online' : u.lastSeen ? 'Last seen ' + _ago(u.lastSeen) : 'Offline'}
-                            </div>
+                            <div class="chatroom-sub" id="chat-status"></div>
                         </div>
                     </div>
                 </div>
@@ -530,29 +522,9 @@ function _setupChatroomSocket(chat, myId, otherName, otherUser) {
             sub.style.color = 'var(--accent)';
             sub.textContent = 'typing…';
         } else {
-            sub.style.color = otherUser.isOnline ? '#34c759' : 'var(--label-secondary)';
-            sub.textContent = otherUser.isOnline ? 'Online'
-                : otherUser.lastSeen ? 'Last seen ' + _ago(otherUser.lastSeen) : 'Offline';
+            sub.style.color = '';
+            sub.textContent = '';
         }
-    };
-
-    const onFriendOnline = ({ userId }) => {
-        if (userId.toString() !== (otherUser._id||'').toString()) return;
-        otherUser.isOnline = true;
-        const sub = document.getElementById('chat-status');
-        const dot = document.getElementById('header-dot');
-        if (sub) { sub.textContent = 'Online'; sub.style.color = '#34c759'; }
-        if (dot) dot.style.background = '#34c759';
-    };
-
-    const onFriendOffline = ({ userId, lastSeen }) => {
-        if (userId.toString() !== (otherUser._id||'').toString()) return;
-        otherUser.isOnline = false;
-        otherUser.lastSeen = lastSeen;
-        const sub = document.getElementById('chat-status');
-        const dot = document.getElementById('header-dot');
-        if (sub) { sub.textContent = 'Last seen ' + _ago(lastSeen); sub.style.color = 'var(--label-secondary)'; }
-        if (dot) dot.style.background = '#c7c7cc';
     };
 
     // Register all handlers and store them for cleanup
@@ -560,16 +532,12 @@ function _setupChatroomSocket(chat, myId, otherName, otherUser) {
     sock.on('message_deleted', onDeleted);
     sock.on('messages_seen',   onSeen);
     sock.on('user_typing',     onTyping);
-    sock.on('friend_online',   onFriendOnline);
-    sock.on('friend_offline',  onFriendOffline);
 
     _chatroomListeners = {
         'new_message':     onNewMsg,
         'message_deleted': onDeleted,
         'messages_seen':   onSeen,
         'user_typing':     onTyping,
-        'friend_online':   onFriendOnline,
-        'friend_offline':  onFriendOffline,
     };
 }
 
