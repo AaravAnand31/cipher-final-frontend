@@ -456,6 +456,27 @@ html.dark .tab-bar {
   line-height: 1.4;
 }
 
+.form-row.input-error {
+  border-bottom: 1.5px solid #ff3b30;
+  animation: shakeError 0.32s var(--ease-smooth);
+}
+
+.form-row.input-error input {
+  color: #ff3b30;
+}
+
+.form-row.input-error .form-row-label {
+  color: #ff3b30;
+}
+
+@keyframes shakeError {
+  0%, 100% { transform: translateX(0); }
+  20%      { transform: translateX(-6px); }
+  40%      { transform: translateX(5px); }
+  60%      { transform: translateX(-4px); }
+  80%      { transform: translateX(3px); }
+}
+
 .form-row input::placeholder,
 .form-row textarea::placeholder {
   color: var(--label-quaternary);

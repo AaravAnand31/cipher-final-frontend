@@ -1,5 +1,5 @@
 // js/screens/auth.js
-import { navigate, setState, toast } from '../helpers.js';
+import { navigate, setState, toast, isGmailAddress, GMAIL_ONLY_MESSAGE } from '../helpers.js';
 import API_URL from '../api.js';
 
 /* ══════════════════════════════════════════════════
@@ -20,7 +20,7 @@ export function renderLogin() {
       <div class="form-section" style="width:100%;max-width:380px;margin-bottom:16px">
         <div class="form-row">
           <div class="form-row-label">Email</div>
-          <input id="loginEmail" type="email" placeholder="you@christuniversity.in" autocomplete="email" />
+          <input id="loginEmail" type="email" placeholder="example@gmail.com" autocomplete="email" />
         </div>
         <div class="form-row" style="border-bottom:none">
           <div class="form-row-label">Password</div>
@@ -37,6 +37,9 @@ export function renderLogin() {
     </div>`;
 
   document.getElementById('loginBtn').addEventListener('click', loginUser);
+  document.getElementById('loginEmail').addEventListener('input', e => {
+    e.target.closest('.form-row')?.classList.remove('input-error');
+  });
   document.getElementById('loginEmail').addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('loginPassword').focus(); });
   document.getElementById('loginPassword').addEventListener('keydown', e => { if (e.key === 'Enter') loginUser(); });
   document.getElementById('goRegister').addEventListener('click', () => navigate('/register'));
@@ -64,7 +67,7 @@ export function renderRegister() {
         </div>
         <div class="form-row">
           <div class="form-row-label">Email</div>
-          <input id="regEmail" type="email" placeholder="you@christuniversity.in" autocomplete="email" />
+          <input id="regEmail" type="email" placeholder="example@gmail.com" autocomplete="email" />
         </div>
         <div class="form-row" style="border-bottom:none">
           <div class="form-row-label">Password</div>
@@ -81,6 +84,9 @@ export function renderRegister() {
     </div>`;
 
   document.getElementById('registerBtn').addEventListener('click', registerUser);
+  document.getElementById('regEmail').addEventListener('input', e => {
+    e.target.closest('.form-row')?.classList.remove('input-error');
+  });
   document.getElementById('goLogin').addEventListener('click', () => navigate('/login'));
 }
 
@@ -111,11 +117,20 @@ function dbUserToState(dbUser) {
 ══════════════════════════════════════════════════ */
 async function registerUser() {
   const name     = document.getElementById('regName').value.trim();
-  const email    = document.getElementById('regEmail').value.trim();
+  const email    = document.getElementById('regEmail').value.trim().toLowerCase();
   const password = document.getElementById('regPassword').value;
+  const emailRow = document.getElementById('regEmail').closest('.form-row');
+
+  emailRow?.classList.remove('input-error');
 
   if (!name || !email || !password) { toast('Please fill in all fields', 'error'); return; }
   if (password.length < 6) { toast('Password must be at least 6 characters', 'error'); return; }
+
+  if (!isGmailAddress(email)) {
+    emailRow?.classList.add('input-error');
+    toast(GMAIL_ONLY_MESSAGE, 'error');
+    return;
+  }
 
   const btn = document.getElementById('registerBtn');
   btn.disabled = true; btn.textContent = 'Creating account…';
@@ -153,10 +168,19 @@ async function registerUser() {
 }
 
 async function loginUser() {
-  const email    = document.getElementById('loginEmail').value.trim();
+  const email    = document.getElementById('loginEmail').value.trim().toLowerCase();
   const password = document.getElementById('loginPassword').value;
+  const emailRow = document.getElementById('loginEmail').closest('.form-row');
+
+  emailRow?.classList.remove('input-error');
 
   if (!email || !password) { toast('Please enter your email and password', 'error'); return; }
+
+  if (!isGmailAddress(email)) {
+    emailRow?.classList.add('input-error');
+    toast(GMAIL_ONLY_MESSAGE, 'error');
+    return;
+  }
 
   const btn = document.getElementById('loginBtn');
   btn.disabled = true; btn.textContent = 'Signing in…';

@@ -69,6 +69,18 @@ console.log("Route not found:", path);
 /* ═══════════ UTILS ═══════════ */
 
 // Toast
+/* ══════════════════════════════════════════════════
+   EMAIL VALIDATION — Gmail-only
+   Single source of truth, reused by both login and
+   register flows (and by the backend's own copy).
+══════════════════════════════════════════════════ */
+export function isGmailAddress(email) {
+  const clean = String(email || '').trim().toLowerCase();
+  return clean.endsWith('@gmail.com');
+}
+
+export const GMAIL_ONLY_MESSAGE = 'Only Gmail addresses (@gmail.com) are allowed.';
+
 export function toast(msg, type = '') {
   const el = document.createElement('div');
   el.className = `toast ${type}`;
@@ -206,16 +218,6 @@ export const DUMMY_REQUESTS = [
     fromUser: { uid: 'u5', name: 'Ishaan Gupta', year: '2nd year', department: 'B.Tech CSE', photoURL: 'https://i.pravatar.cc/150?img=68', bio: 'Open source contributor with 3 unfinished side projects.', lookingFor: ['Project partner', 'Study buddy'] },
   },
 ];
-
-// Fallback user shown on profile screen before real data loads
-export const DUMMY_USER = {
-  uid: '', name: '', email: '', year: '', department: '',
-  bio: '', icebreaker: '', interests: [], lookingFor: [],
-  openTo: ['Everyone'], photoURL: '', coverURL: '', profileDone: false,
-};
-
-// Fallback people list for search screen before real data loads
-export const DUMMY_PEOPLE = [];
 
 export const YEARS   = ['1st year', '2nd year', '3rd year', 'Final year', 'PG'];
 export const LOOKING = ['Make friends', 'Project partner', 'Study buddy', 'Mentor / learn', 'Chai & chat', 'Startup ideas'];
