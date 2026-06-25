@@ -123,12 +123,13 @@ function renderCards() {
         return;
     }
 
-    list.forEach(u => {
+    list.forEach((u, i) => {
         const name  = u.username || u.name || 'Student';
         const tags  = (u.lookingFor||[]).map(tagHTML).join('');
         const pills = (u.interests||[]).slice(0,4).map(i => `<span class="interest-pill">${i}</span>`).join('');
         const card  = document.createElement('div');
         card.className = 'discover-card'; card.dataset.uid = u._id;
+        card.style.animationDelay = `${Math.min(i, 6) * 0.05}s`;
         card.innerHTML = `
             <div class="card-cover" style="${u.coverURL
                 ? `background:url('${u.coverURL}') center/cover`
@@ -186,9 +187,19 @@ function bindFeedButtons() {
             const d = await res.json();
             if (!res.ok) throw new Error(d.message);
             toast('Request sent! 🤝', 'success');
+            btn.classList.add('btn-success-flash');
+            btn.innerHTML = '✓ Sent';
             _users = _users.filter(u => u._id !== uid);
-            document.querySelector(`.discover-card[data-uid="${uid}"]`)?.remove();
-            if (!visible().length && _done) renderCards();
+            const cardEl = document.querySelector(`.discover-card[data-uid="${uid}"]`);
+            if (cardEl) {
+                cardEl.classList.add('card-exit');
+                setTimeout(() => {
+                    cardEl.remove();
+                    if (!visible().length && _done) renderCards();
+                }, 320);
+            } else if (!visible().length && _done) {
+                renderCards();
+            }
         } catch (err) {
             toast(err.message || 'Could not send request', 'error');
             btn.disabled = false; btn.innerHTML = '+ &nbsp;Connect';
@@ -281,7 +292,7 @@ export async function renderChats() {
                     const name = u.username || u.name || 'Student';
                     const hasUnread = c.unreadCount > 0;
                     return `
-                        <div class="chat-row" data-chatid="${c.connectionId}" style="${i===conns.length-1?'border-bottom:none':''}">
+                        <div class="chat-row chat-row-enter" style="${i===conns.length-1?'border-bottom:none':''};animation-delay:${Math.min(i, 8) * 0.04}s" data-chatid="${c.connectionId}">
                             <div style="position:relative;flex-shrink:0">
                                 ${avatarHTML(name, u.photoURL, 50)}
                                 <div data-online-uid="${u._id}" style="position:absolute;bottom:0;right:0;
@@ -755,12 +766,12 @@ export async function renderRequests() {
             return;
         }
 
-        area.innerHTML = requests.map(req => {
+        area.innerHTML = requests.map((req, i) => {
             const u    = req.fromUser;
             const name = u.username || u.name || 'Student';
             const tags = (u.lookingFor||[]).map(tagHTML).join('');
             return `
-                <div class="request-card" data-conn-id="${req._id}">
+                <div class="request-card" data-conn-id="${req._id}" style="animation-delay:${Math.min(i, 6) * 0.06}s">
                     <div style="display:flex;gap:12px;align-items:center">
                         <div style="position:relative;flex-shrink:0">
                             ${avatarHTML(name, u.photoURL, 52)}
@@ -798,6 +809,9 @@ export async function renderRequests() {
                 });
                 if (!r2.ok) throw new Error('Failed');
                 toast(action==='accept' ? 'Connected! 🎉 Open Chats to say hi' : 'Request declined', 'success');
+                if (action === 'accept') btn.classList.add('btn-success-flash');
+                card?.classList.add('card-exit');
+                await new Promise(r => setTimeout(r, 280));
                 card?.remove();
                 const remaining = document.querySelectorAll('.request-card').length;
                 document.getElementById('req-sub').textContent = remaining ? `${remaining} pending` : 'All caught up';

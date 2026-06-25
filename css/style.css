@@ -374,8 +374,8 @@ html.dark .tab-bar {
   transition: color 0.2s;
 }
 
-.tab-item.active {
-  color: var(--accent);
+.tab-item:active .tab-icon {
+  transform: scale(0.86);
 }
 
 .tab-icon {
@@ -385,6 +385,11 @@ html.dark .tab-bar {
   align-items: center;
   justify-content: center;
   position: relative;
+  transition: transform 0.15s var(--ease-spring);
+}
+
+.tab-item.active {
+  color: var(--accent);
 }
 
 .tab-icon svg {
@@ -417,6 +422,47 @@ html.dark .tab-bar {
   justify-content: center;
   padding: 0 4px;
   border: 1.5px solid var(--bg-primary);
+  animation: badgePop 0.4s var(--ease-spring) both;
+}
+
+@keyframes badgePop {
+  0%   { opacity: 0; transform: scale(0); }
+  60%  { opacity: 1; transform: scale(1.25); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+/* Online status dots — subtle living pulse + entrance pop */
+[data-online-uid] {
+  animation: dotPop 0.3s var(--ease-spring) both;
+  transition: background 0.3s var(--ease-smooth);
+}
+
+@keyframes dotPop {
+  from { opacity: 0; transform: scale(0.4); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+/* Success flash — toggle this class briefly on a button right before
+   removing its parent card, gives tactile "confirmed" feedback */
+.btn-success-flash {
+  animation: successFlash 0.45s var(--ease-spring) both;
+}
+
+@keyframes successFlash {
+  0%   { transform: scale(1); }
+  35%  { transform: scale(1.12); background: #34c759 !important; }
+  100% { transform: scale(1); }
+}
+
+/* Card exit — used when a discover/request card is removed after action */
+.card-exit {
+  animation: cardExit 0.32s var(--ease-smooth) both;
+  pointer-events: none;
+}
+
+@keyframes cardExit {
+  from { opacity: 1; transform: scale(1) translateY(0); }
+  to   { opacity: 0; transform: scale(0.92) translateY(-6px); }
 }
 
 /* ── FORMS ───────────────────────────────────────────── */
@@ -1148,6 +1194,15 @@ html.dark .card-badge {
 
 .chat-row:active {
   background: var(--fill-tertiary);
+}
+
+.chat-row-enter {
+  animation: rowSlideIn 0.32s var(--ease-smooth) both;
+}
+
+@keyframes rowSlideIn {
+  from { opacity: 0; transform: translateX(-10px); }
+  to   { opacity: 1; transform: translateX(0); }
 }
 
 .chat-info {
