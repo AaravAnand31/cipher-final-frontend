@@ -7,6 +7,17 @@ import { renderProfile, renderSettings, renderBlocked, renderEditProfile, render
 import { renderSearch }                 from './screens/search.js';
 
 /* ═══════════════════════════════════════════════
+   APPLY SAVED THEME BEFORE FIRST RENDER
+   Prevents a light-mode flash on login/register
+   for users who previously chose dark mode.
+═══════════════════════════════════════════════ */
+try {
+    const savedDark = JSON.parse(localStorage.getItem('cipher_dark') || 'false');
+    if (savedDark) document.documentElement.classList.add('dark');
+    setState({ darkMode: savedDark });
+} catch (_) { /* ignore malformed value */ }
+
+/* ═══════════════════════════════════════════════
    ROUTES
 ═══════════════════════════════════════════════ */
 register('/login',        () => renderLogin());
@@ -67,7 +78,7 @@ export function initGlobalSocket() {
         return;
     }
 
-    window._cipherSocket = window.io('http://localhost:5500');
+    window._cipherSocket = window.io('https://cipher-425d.onrender.com');
 
     window._cipherSocket.on('connect', () => {
         console.log('Global socket connected, announcing user_online:', myId);

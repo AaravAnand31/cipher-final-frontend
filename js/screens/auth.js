@@ -7,42 +7,66 @@ import API_URL from '../api.js';
 ══════════════════════════════════════════════════ */
 export function renderLogin() {
   document.getElementById('app').innerHTML = `
-    <div class="screen screen-enter" style="
-      display:flex;flex-direction:column;align-items:center;
-      justify-content:center;padding:40px 24px;min-height:100dvh;
-      background:var(--bg-secondary)">
+    <div class="screen screen-enter auth-wrap">
+      <div class="auth-orb auth-orb-1"></div>
+      <div class="auth-orb auth-orb-2"></div>
 
-      <div style="text-align:center;margin-bottom:40px">
-        <div style="font-size:40px;font-weight:800;color:var(--accent);letter-spacing:-1px">Cipher</div>
-        <div style="font-size:14px;color:var(--label-secondary);margin-top:4px">Christ University · Gzb</div>
+      <div class="auth-hero">
+        <div class="auth-mark">
+          <svg viewBox="0 0 24 24" fill="none">
+            <rect x="5" y="11" width="14" height="9" rx="2" stroke="#fff" stroke-width="1.8"/>
+            <path d="M8 11V7a4 4 0 018 0v4" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/>
+            <circle cx="12" cy="15.5" r="1.4" fill="#fff"/>
+          </svg>
+        </div>
+        <div class="auth-title">Cipher</div>
+        <div class="auth-tag">🎓 Christ University · Ghaziabad</div>
       </div>
 
-      <div class="form-section" style="width:100%;max-width:380px;margin-bottom:16px">
-        <div class="form-row">
-          <div class="form-row-label">Email</div>
-          <input id="loginEmail" type="email" placeholder="example@gmail.com" autocomplete="email" />
+      <div class="auth-card">
+        <div class="auth-field">
+          <label class="auth-field-label" for="loginEmail">Email</label>
+          <div class="auth-input-shell">
+            <svg class="auth-input-icon" viewBox="0 0 24 24" fill="none">
+              <rect x="3" y="5" width="18" height="14" rx="2.5" stroke="currentColor" stroke-width="1.7"/>
+              <path d="M4 7l7 5.5a1.6 1.6 0 002 0L20 7" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            <input id="loginEmail" type="email" placeholder="example@gmail.com" autocomplete="email" />
+          </div>
         </div>
-        <div class="form-row" style="border-bottom:none">
-          <div class="form-row-label">Password</div>
-          <input id="loginPassword" type="password" placeholder="••••••••" autocomplete="current-password" />
+
+        <div class="auth-field">
+          <label class="auth-field-label" for="loginPassword">Password</label>
+          <div class="auth-input-shell">
+            <svg class="auth-input-icon" viewBox="0 0 24 24" fill="none">
+              <rect x="5" y="11" width="14" height="9" rx="2" stroke="currentColor" stroke-width="1.7"/>
+              <path d="M8 11V7a4 4 0 018 0v4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+            </svg>
+            <input id="loginPassword" type="password" placeholder="••••••••" autocomplete="current-password" />
+            <svg class="auth-toggle-pw" id="loginPwToggle" viewBox="0 0 24 24" fill="none">
+              <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
+              <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.6"/>
+            </svg>
+          </div>
         </div>
+
+        <button class="btn btn-primary auth-submit" id="loginBtn">Sign in</button>
       </div>
 
-      <button class="btn btn-primary" id="loginBtn" style="max-width:380px">Sign in</button>
-
-      <div style="margin-top:24px;font-size:14px;color:var(--label-secondary)">
+      <div class="auth-footer">
         Don't have an account?
-        <span id="goRegister" style="color:var(--accent);font-weight:600;cursor:pointer"> Register</span>
+        <span id="goRegister" class="auth-footer-link">Register</span>
       </div>
     </div>`;
 
   document.getElementById('loginBtn').addEventListener('click', loginUser);
   document.getElementById('loginEmail').addEventListener('input', e => {
-    e.target.closest('.form-row')?.classList.remove('input-error');
+    e.target.closest('.auth-input-shell')?.classList.remove('input-error');
   });
   document.getElementById('loginEmail').addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('loginPassword').focus(); });
   document.getElementById('loginPassword').addEventListener('keydown', e => { if (e.key === 'Enter') loginUser(); });
   document.getElementById('goRegister').addEventListener('click', () => navigate('/register'));
+  bindPasswordToggle('loginPassword', 'loginPwToggle');
 }
 
 /* ══════════════════════════════════════════════════
@@ -50,44 +74,93 @@ export function renderLogin() {
 ══════════════════════════════════════════════════ */
 export function renderRegister() {
   document.getElementById('app').innerHTML = `
-    <div class="screen screen-enter" style="
-      display:flex;flex-direction:column;align-items:center;
-      justify-content:center;padding:40px 24px;min-height:100dvh;
-      background:var(--bg-secondary)">
+    <div class="screen screen-enter auth-wrap">
+      <div class="auth-orb auth-orb-1"></div>
+      <div class="auth-orb auth-orb-2"></div>
 
-      <div style="text-align:center;margin-bottom:40px">
-        <div style="font-size:40px;font-weight:800;color:var(--accent);letter-spacing:-1px">Cipher</div>
-        <div style="font-size:14px;color:var(--label-secondary);margin-top:4px">Create your account</div>
+      <div class="auth-hero">
+        <div class="auth-mark">
+          <svg viewBox="0 0 24 24" fill="none">
+            <path d="M12 12a4 4 0 100-8 4 4 0 000 8z" stroke="#fff" stroke-width="1.8"/>
+            <path d="M4.5 20c0-3.6 3.4-6.5 7.5-6.5s7.5 2.9 7.5 6.5" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/>
+            <path d="M18.5 8.5v4M16.5 10.5h4" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <div class="auth-title">Cipher</div>
+        <div class="auth-tag">✨ Create your account</div>
       </div>
 
-      <div class="form-section" style="width:100%;max-width:380px;margin-bottom:16px">
-        <div class="form-row">
-          <div class="form-row-label">Full name</div>
-          <input id="regName" type="text" placeholder="Aarav Anand" autocomplete="name" />
+      <div class="auth-card">
+        <div class="auth-field">
+          <label class="auth-field-label" for="regName">Full name</label>
+          <div class="auth-input-shell">
+            <svg class="auth-input-icon" viewBox="0 0 24 24" fill="none">
+              <circle cx="12" cy="8" r="3.5" stroke="currentColor" stroke-width="1.7"/>
+              <path d="M5 20c0-3.3 3.1-6 7-6s7 2.7 7 6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+            </svg>
+            <input id="regName" type="text" placeholder="Aarav Anand" autocomplete="name" />
+          </div>
         </div>
-        <div class="form-row">
-          <div class="form-row-label">Email</div>
-          <input id="regEmail" type="email" placeholder="example@gmail.com" autocomplete="email" />
+
+        <div class="auth-field">
+          <label class="auth-field-label" for="regEmail">Email</label>
+          <div class="auth-input-shell">
+            <svg class="auth-input-icon" viewBox="0 0 24 24" fill="none">
+              <rect x="3" y="5" width="18" height="14" rx="2.5" stroke="currentColor" stroke-width="1.7"/>
+              <path d="M4 7l7 5.5a1.6 1.6 0 002 0L20 7" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            <input id="regEmail" type="email" placeholder="example@gmail.com" autocomplete="email" />
+          </div>
         </div>
-        <div class="form-row" style="border-bottom:none">
-          <div class="form-row-label">Password</div>
-          <input id="regPassword" type="password" placeholder="Min. 6 characters" autocomplete="new-password" />
+
+        <div class="auth-field">
+          <label class="auth-field-label" for="regPassword">Password</label>
+          <div class="auth-input-shell">
+            <svg class="auth-input-icon" viewBox="0 0 24 24" fill="none">
+              <rect x="5" y="11" width="14" height="9" rx="2" stroke="currentColor" stroke-width="1.7"/>
+              <path d="M8 11V7a4 4 0 018 0v4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+            </svg>
+            <input id="regPassword" type="password" placeholder="Min. 6 characters" autocomplete="new-password" />
+            <svg class="auth-toggle-pw" id="regPwToggle" viewBox="0 0 24 24" fill="none">
+              <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
+              <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.6"/>
+            </svg>
+          </div>
         </div>
+
+        <button class="btn btn-primary auth-submit" id="registerBtn">Continue →</button>
       </div>
 
-      <button class="btn btn-primary" id="registerBtn" style="max-width:380px">Continue →</button>
-
-      <div style="margin-top:24px;font-size:14px;color:var(--label-secondary)">
+      <div class="auth-footer">
         Already have an account?
-        <span id="goLogin" style="color:var(--accent);font-weight:600;cursor:pointer"> Sign in</span>
+        <span id="goLogin" class="auth-footer-link">Sign in</span>
       </div>
     </div>`;
 
   document.getElementById('registerBtn').addEventListener('click', registerUser);
   document.getElementById('regEmail').addEventListener('input', e => {
-    e.target.closest('.form-row')?.classList.remove('input-error');
+    e.target.closest('.auth-input-shell')?.classList.remove('input-error');
   });
+  document.getElementById('regName').addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('regEmail').focus(); });
+  document.getElementById('regEmail').addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('regPassword').focus(); });
+  document.getElementById('regPassword').addEventListener('keydown', e => { if (e.key === 'Enter') registerUser(); });
   document.getElementById('goLogin').addEventListener('click', () => navigate('/login'));
+  bindPasswordToggle('regPassword', 'regPwToggle');
+}
+
+/* ══════════════════════════════════════════════════
+   PASSWORD VISIBILITY TOGGLE — shared by both screens
+══════════════════════════════════════════════════ */
+function bindPasswordToggle(inputId, toggleId) {
+  const input  = document.getElementById(inputId);
+  const toggle = document.getElementById(toggleId);
+  if (!input || !toggle) return;
+
+  toggle.addEventListener('click', () => {
+    const isHidden = input.type === 'password';
+    input.type = isHidden ? 'text' : 'password';
+    toggle.style.opacity = isHidden ? '1' : '0.6';
+  });
 }
 
 /* ══════════════════════════════════════════════════
@@ -119,7 +192,7 @@ async function registerUser() {
   const name     = document.getElementById('regName').value.trim();
   const email    = document.getElementById('regEmail').value.trim().toLowerCase();
   const password = document.getElementById('regPassword').value;
-  const emailRow = document.getElementById('regEmail').closest('.form-row');
+  const emailRow = document.getElementById('regEmail').closest('.auth-input-shell');
 
   emailRow?.classList.remove('input-error');
 
@@ -133,7 +206,7 @@ async function registerUser() {
   }
 
   const btn = document.getElementById('registerBtn');
-  btn.disabled = true; btn.textContent = 'Creating account…';
+  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Creating account…';
 
   try {
     // 1 — Register
@@ -170,7 +243,7 @@ async function registerUser() {
 async function loginUser() {
   const email    = document.getElementById('loginEmail').value.trim().toLowerCase();
   const password = document.getElementById('loginPassword').value;
-  const emailRow = document.getElementById('loginEmail').closest('.form-row');
+  const emailRow = document.getElementById('loginEmail').closest('.auth-input-shell');
 
   emailRow?.classList.remove('input-error');
 
@@ -183,7 +256,7 @@ async function loginUser() {
   }
 
   const btn = document.getElementById('loginBtn');
-  btn.disabled = true; btn.textContent = 'Signing in…';
+  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Signing in…';
 
   try {
     const res  = await fetch(`${API_URL}/auth/login`, {
