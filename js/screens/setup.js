@@ -221,7 +221,7 @@ function renderStep() {
 
         <div style="display:flex;gap:10px">
           <button class="btn btn-secondary-fill" id="back-btn" style="flex:1">← Back</button>
-          <button class="btn btn-primary" id="finish-btn" style="flex:2;margin-top:0">Go to Cipher 🎉</button>
+          <button class="btn btn-primary" id="finish-btn" style="flex:2;margin-top:0">Go to Fliqr 🎉</button>
         </div>
       </div>`;
 

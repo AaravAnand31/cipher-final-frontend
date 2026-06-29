@@ -404,7 +404,7 @@ export function renderSettings() {
     { icon:'✏️', bg:'#34aadc', label:'Edit profile',  sub:'Update your bio and photos', action:'edit'   },
     { icon:'🔔', bg:'#ff9500', label:'Notifications', sub:'Manage alerts',              action:'notif'  },
     { icon:'🚫', bg:'#ff3b30', label:'Blocked users', sub:'Manage blocked people',      action:'blocked'},
-    { icon:'ℹ️', bg:'#007aff', label:'About Cipher',  sub:'Version 1.0.0',             action:'about'  },
+    { icon:'ℹ️', bg:'#007aff', label:'About Fliqr',  sub:'Version 1.0.0',             action:'about'  },
   ];
 
   document.getElementById('app').innerHTML = `
@@ -457,7 +457,7 @@ export function renderSettings() {
         <button class="btn btn-destructive" id="signout-btn">Sign out</button>
 
         <div style="text-align:center;font-size:12px;color:var(--label-tertiary);margin-top:20px;margin-bottom:8px">
-          Cipher · Christ University Ghaziabad<br>Made with ♡ for campus life
+          Fliqr · Christ University Ghaziabad<br>Made with ♡ for campus life
         </div>
       </div>
     </div>`;
@@ -474,7 +474,7 @@ export function renderSettings() {
     const a = el.dataset.action;
     if (a === 'blocked') navigate('/blocked');
     else if (a === 'edit') navigate('/edit-profile');
-    else if (a === 'about') toast('Cipher v1.0 · Built for Christ (Deemed to be University) Ghaziabad 🎓');
+    else if (a === 'about') toast('Fliqr v1.0 · Built for Christ (Deemed to be University) Ghaziabad 🎓');
     else toast(`Coming soon!`);
   }));
   document.getElementById('signout-btn').addEventListener('click', async () => {

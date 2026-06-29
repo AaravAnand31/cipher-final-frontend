@@ -19,7 +19,7 @@ export function renderLogin() {
             <circle cx="12" cy="15.5" r="1.4" fill="#fff"/>
           </svg>
         </div>
-        <div class="auth-title">Cipher</div>
+        <div class="auth-title">Fliqr</div>
         <div class="auth-tag">🎓 Christ University · Ghaziabad</div>
       </div>
 
@@ -86,7 +86,7 @@ export function renderRegister() {
             <path d="M18.5 8.5v4M16.5 10.5h4" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/>
           </svg>
         </div>
-        <div class="auth-title">Cipher</div>
+        <div class="auth-title">Fliqr</div>
         <div class="auth-tag">✨ Create your account</div>
       </div>
 

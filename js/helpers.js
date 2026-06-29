@@ -193,7 +193,7 @@ export const DUMMY_CHATS = [
 
 export const DUMMY_MESSAGES = {
   'chat-1': [
-    { id: 'm1', senderUid: 'u2', text: 'Hey! Saw your profile on Cipher. Looks like we\'re both into hackathons', time: new Date(Date.now() - 45 * 60000) },
+    { id: 'm1', senderUid: 'u2', text: 'Hey! Saw your profile on Fliqr. Looks like we\'re both into hackathons', time: new Date(Date.now() - 45 * 60000) },
     { id: 'm2', senderUid: 'me-001', text: 'Yes!! Are you applying for HackCU next month?', time: new Date(Date.now() - 44 * 60000) },
     { id: 'm3', senderUid: 'u2', text: 'Absolutely. Need a team. Want to pair up?', time: new Date(Date.now() - 43 * 60000) },
     { id: 'm4', senderUid: 'me-001', text: '100% in. I can handle frontend + design, you take hardware/backend?', time: new Date(Date.now() - 42 * 60000) },

@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════════════════
-   CIPHER · Apple-Inspired Design System
+   FLIQR · Apple-Inspired Design System
    ═══════════════════════════════════════════════════ */
 
 /* ── Google Font fallback: SF Pro isn't available via Google,
@@ -31,7 +31,7 @@
   --fill-secondary: rgba(120, 120, 128, 0.16);
   --fill-tertiary: rgba(118, 118, 128, 0.12);
 
-  /* Accent — deep forest green (Cipher brand) */
+  /* Accent — deep forest green (Fliqr brand) */
   --accent: #1c6b2a;
   --accent-light: #34c759;
   --accent-bg: #f0faf2;

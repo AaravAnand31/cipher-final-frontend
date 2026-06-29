@@ -30,7 +30,7 @@ export function renderDiscover() {
             <div class="nav-bar">
                 <div class="nav-left">
                     <div>
-                        <div class="nav-title-large">Cipher</div>
+                        <div class="nav-title-large">Fliqr</div>
                         <div class="nav-subtitle">Christ University · Gzb</div>
                     </div>
                 </div>
