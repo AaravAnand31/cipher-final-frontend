@@ -844,6 +844,72 @@ html.dark .chip.selected {
   }
 }
 
+/* ── PAGE LOADER — premium pulsing-dot trio ───────────
+   Used for full-page / full-section loading states
+   (Discover feed, Chats list, Requests, message history).
+   Distinct from the small inline .spinner used in buttons. */
+.page-loader {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  padding: 6px 0;
+}
+
+.page-loader-dot {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: dotBounce 1.1s var(--ease-smooth) infinite;
+  box-shadow: 0 0 10px var(--accent-mid);
+}
+
+.page-loader-dot:nth-child(1) { animation-delay: 0s;    }
+.page-loader-dot:nth-child(2) { animation-delay: 0.15s; }
+.page-loader-dot:nth-child(3) { animation-delay: 0.3s;  }
+
+@keyframes dotBounce {
+  0%, 60%, 100% {
+    transform: translateY(0) scale(1);
+    opacity: 0.55;
+  }
+  30% {
+    transform: translateY(-9px) scale(1.15);
+    opacity: 1;
+  }
+}
+
+/* Wrapper that centers the dots + optional caption text,
+   replacing the old <div style="text-align:center;padding..."> pattern */
+.page-loader-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 70px 0;
+  animation: fadeIn 0.25s var(--ease-smooth) both;
+}
+
+.page-loader-caption {
+  font-size: 13.5px;
+  color: var(--label-secondary);
+  margin-top: 16px;
+  font-weight: 500;
+  letter-spacing: 0.1px;
+  animation: captionPulse 1.8s ease-in-out infinite;
+}
+
+@keyframes captionPulse {
+  0%, 100% { opacity: 0.55; }
+  50%      { opacity: 1; }
+}
+
+/* Compact variant — for tighter spaces like inside a message list */
+.page-loader-wrap.compact {
+  padding: 40px 0;
+}
+
 .loading-screen {
   display: flex;
   flex-direction: column;

@@ -48,9 +48,13 @@ export function renderDiscover() {
                 ).join('')}
             </div>
             <div class="screen-body" id="feed-area" style="padding-top:8px">
-                <div style="text-align:center;padding:80px 0" id="feed-loader">
-                    <div class="spinner"></div>
-                    <div style="font-size:13px;color:var(--label-secondary);margin-top:12px">Finding people…</div>
+                <div class="page-loader-wrap" id="feed-loader">
+                    <div class="page-loader">
+                        <span class="page-loader-dot"></span>
+                        <span class="page-loader-dot"></span>
+                        <span class="page-loader-dot"></span>
+                    </div>
+                    <div class="page-loader-caption">Finding people…</div>
                 </div>
             </div>
             ${tabBarHTML('discover')}
@@ -260,7 +264,13 @@ export async function renderChats() {
                 </div>
             </div>
             <div class="screen-body" id="chats-body">
-                <div style="text-align:center;padding:60px 0"><div class="spinner"></div></div>
+                <div class="page-loader-wrap">
+                    <div class="page-loader">
+                        <span class="page-loader-dot"></span>
+                        <span class="page-loader-dot"></span>
+                        <span class="page-loader-dot"></span>
+                    </div>
+                </div>
             </div>
             ${tabBarHTML('chats')}
         </div>`;
@@ -376,8 +386,12 @@ export function renderChatroom() {
                 </div>
 
                 <div class="messages-list" id="msgs">
-                    <div style="text-align:center;padding:60px 0" id="msgs-loader">
-                        <div class="spinner"></div>
+                    <div class="page-loader-wrap compact" id="msgs-loader">
+                        <div class="page-loader">
+                            <span class="page-loader-dot"></span>
+                            <span class="page-loader-dot"></span>
+                            <span class="page-loader-dot"></span>
+                        </div>
                     </div>
                 </div>
 
@@ -740,7 +754,13 @@ export async function renderRequests() {
                 </div>
             </div>
             <div class="screen-body" id="req-area" style="padding-top:16px">
-                <div style="text-align:center;padding:60px 0"><div class="spinner"></div></div>
+                <div class="page-loader-wrap">
+                    <div class="page-loader">
+                        <span class="page-loader-dot"></span>
+                        <span class="page-loader-dot"></span>
+                        <span class="page-loader-dot"></span>
+                    </div>
+                </div>
             </div>
             ${tabBarHTML('requests')}
         </div>`;

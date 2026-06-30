@@ -48,7 +48,13 @@ export function renderSearch() {
       </div>
 
       <div class="screen-body" id="search-results" style="padding:12px 16px 8px">
-        <div style="text-align:center;padding:60px 0"><div class="spinner"></div></div>
+        <div class="page-loader-wrap">
+          <div class="page-loader">
+            <span class="page-loader-dot"></span>
+            <span class="page-loader-dot"></span>
+            <span class="page-loader-dot"></span>
+          </div>
+        </div>
       </div>
 
       ${tabBarHTML('search')}
@@ -77,7 +83,13 @@ export function renderSearch() {
 
     // Debounce — wait 300ms after typing stops before hitting the API
     document.getElementById('search-results').innerHTML = `
-      <div style="text-align:center;padding:60px 0"><div class="spinner"></div></div>`;
+      <div class="page-loader-wrap">
+        <div class="page-loader">
+          <span class="page-loader-dot"></span>
+          <span class="page-loader-dot"></span>
+          <span class="page-loader-dot"></span>
+        </div>
+      </div>`;
 
     _debounceTimer = setTimeout(() => runSearch(q), 300);
   });
@@ -244,7 +256,13 @@ function bindSuggestionChips() {
       clearBtn.style.display = 'block';
 
       document.getElementById('search-results').innerHTML = `
-        <div style="text-align:center;padding:60px 0"><div class="spinner"></div></div>`;
+        <div class="page-loader-wrap">
+          <div class="page-loader">
+            <span class="page-loader-dot"></span>
+            <span class="page-loader-dot"></span>
+            <span class="page-loader-dot"></span>
+          </div>
+        </div>`;
       runSearch(btn.dataset.suggest);
       input.focus();
     });

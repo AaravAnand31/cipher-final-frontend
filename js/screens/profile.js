@@ -166,7 +166,13 @@ export async function renderViewProfile() {
         <div class="nav-right" style="min-width:60px"></div>
       </div>
       <div class="screen-body" id="vp-body">
-        <div style="text-align:center;padding:80px 0"><div class="spinner"></div></div>
+        <div class="page-loader-wrap">
+          <div class="page-loader">
+            <span class="page-loader-dot"></span>
+            <span class="page-loader-dot"></span>
+            <span class="page-loader-dot"></span>
+          </div>
+        </div>
       </div>
     </div>`;
 
@@ -261,21 +267,63 @@ export async function renderViewProfile() {
 
     <div style="height:8px;background:var(--bg-secondary)"></div>
 
-    <!-- Action button -->
-    <div style="padding:20px 16px 40px">
-      <button id="vp-chat-btn" class="btn btn-primary">
-        💬 Open Chat
-      </button>
+    <!-- Action button(s) — driven by real connection status -->
+    <div style="padding:20px 16px 40px" id="vp-action-area">
+      ${actionButtonHTML(user.connectionStatus)}
     </div>`;
 
-  // Open Chat → go to chatroom with this user
-  document.getElementById('vp-chat-btn').addEventListener('click', async () => {
-    // Find the connection ID for this user
+  bindActionButton(user, userId);
+}
+
+/* ── Build the right button(s) for the current connection state ── */
+function actionButtonHTML(status) {
+  switch (status) {
+    case 'accepted':
+      return `
+        <button id="vp-chat-btn" class="btn btn-primary">
+          💬 Open Chat
+        </button>`;
+
+    case 'pending_sent':
+      return `
+        <button id="vp-withdraw-btn" class="btn" style="
+          width:100%; background:var(--fill-tertiary); color:var(--label-secondary);
+          font-size:16px; font-weight:600; padding:15px 24px;">
+          ⏳ Request pending · Tap to withdraw
+        </button>`;
+
+    case 'pending_received':
+      return `
+        <div style="display:flex;gap:10px">
+          <button id="vp-decline-btn" class="btn btn-secondary-fill" style="flex:1">Decline</button>
+          <button id="vp-accept-btn" class="btn btn-primary" style="flex:1;margin-top:0">✓ Accept request</button>
+        </div>`;
+
+    case 'rejected':
+      return `
+        <button id="vp-connect-btn" class="btn btn-primary">
+          + Connect
+        </button>`;
+
+    default: // 'none'
+      return `
+        <button id="vp-connect-btn" class="btn btn-primary">
+          + Connect
+        </button>`;
+  }
+}
+
+/* ── Wire up whichever button(s) are currently shown ── */
+function bindActionButton(user, userId) {
+  const targetId = (user._id || userId)?.toString();
+
+  // Open Chat — only shown when accepted
+  document.getElementById('vp-chat-btn')?.addEventListener('click', async () => {
     try {
       const res = await fetch(`${API_URL}/connections`, { headers: authHeaders() });
       if (!res.ok) throw new Error('Failed');
       const conns = await res.json();
-      const conn = conns.find(c => c.user?._id?.toString() === (user._id||userId)?.toString());
+      const conn = conns.find(c => c.user?._id?.toString() === targetId);
       if (conn) {
         navigate('/chatroom', { chat: { chatId: conn.connectionId, otherUser: conn.user } });
       } else {
@@ -283,6 +331,110 @@ export async function renderViewProfile() {
       }
     } catch {
       toast('Could not open chat', 'error');
+    }
+  });
+
+  // Connect — sends a fresh request
+  document.getElementById('vp-connect-btn')?.addEventListener('click', async (e) => {
+    const btn = e.currentTarget;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span> Sending…';
+    try {
+      const res = await fetch(`${API_URL}/connections/request`, {
+        method: 'POST', headers: authHeaders(),
+        body: JSON.stringify({ toUserId: targetId }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Failed to send request');
+      toast('Request sent! 🤝', 'success');
+      document.getElementById('vp-action-area').innerHTML = actionButtonHTML('pending_sent');
+      bindActionButton(user, userId);
+    } catch (err) {
+      toast(err.message || 'Could not send request', 'error');
+      btn.disabled = false;
+      btn.innerHTML = '+ Connect';
+    }
+  });
+
+  // Withdraw — cancels a request I sent by mistake or changed my mind about
+  document.getElementById('vp-withdraw-btn')?.addEventListener('click', async (e) => {
+    const btn = e.currentTarget;
+    const ok = await confirm('Withdraw request?', "They won't be notified, and you can send a new request later.");
+    if (!ok) return;
+
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span> Withdrawing…';
+
+    try {
+      // Find the connectionId — re-fetch the user since we may only have it from earlier state
+      const res = await fetch(`${API_URL}/users/${targetId}`, { headers: authHeaders() });
+      const fresh = await res.json();
+      if (!fresh.connectionId) throw new Error('Could not find this request');
+
+      const wRes = await fetch(`${API_URL}/connections/withdraw`, {
+        method: 'POST', headers: authHeaders(),
+        body: JSON.stringify({ connectionId: fresh.connectionId }),
+      });
+      const wData = await wRes.json();
+      if (!wRes.ok) throw new Error(wData.message || 'Failed to withdraw');
+
+      toast('Request withdrawn', 'success');
+      document.getElementById('vp-action-area').innerHTML = actionButtonHTML('none');
+      bindActionButton(user, userId);
+    } catch (err) {
+      toast(err.message || 'Could not withdraw request', 'error');
+      btn.disabled = false;
+      btn.innerHTML = '⏳ Request pending · Tap to withdraw';
+    }
+  });
+
+  // Accept — for requests sent TO me, viewed from their profile
+  document.getElementById('vp-accept-btn')?.addEventListener('click', async (e) => {
+    const btn = e.currentTarget;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span>';
+    try {
+      const res = await fetch(`${API_URL}/users/${targetId}`, { headers: authHeaders() });
+      const fresh = await res.json();
+      if (!fresh.connectionId) throw new Error('Could not find this request');
+
+      const aRes = await fetch(`${API_URL}/connections/accept`, {
+        method: 'POST', headers: authHeaders(),
+        body: JSON.stringify({ connectionId: fresh.connectionId }),
+      });
+      if (!aRes.ok) throw new Error('Failed to accept');
+
+      toast('Connected! 🎉 Open Chats to say hi', 'success');
+      document.getElementById('vp-action-area').innerHTML = actionButtonHTML('accepted');
+      bindActionButton(user, userId);
+    } catch (err) {
+      toast(err.message || 'Could not accept', 'error');
+      btn.disabled = false;
+      btn.innerHTML = '✓ Accept request';
+    }
+  });
+
+  // Decline — for requests sent TO me, viewed from their profile
+  document.getElementById('vp-decline-btn')?.addEventListener('click', async (e) => {
+    const btn = e.currentTarget;
+    btn.disabled = true;
+    try {
+      const res = await fetch(`${API_URL}/users/${targetId}`, { headers: authHeaders() });
+      const fresh = await res.json();
+      if (!fresh.connectionId) throw new Error('Could not find this request');
+
+      const rRes = await fetch(`${API_URL}/connections/reject`, {
+        method: 'POST', headers: authHeaders(),
+        body: JSON.stringify({ connectionId: fresh.connectionId }),
+      });
+      if (!rRes.ok) throw new Error('Failed to decline');
+
+      toast('Request declined', 'success');
+      document.getElementById('vp-action-area').innerHTML = actionButtonHTML('rejected');
+      bindActionButton(user, userId);
+    } catch (err) {
+      toast(err.message || 'Could not decline', 'error');
+      btn.disabled = false;
     }
   });
 }
@@ -318,7 +470,13 @@ export async function renderConnections() {
         <div class="nav-right" style="min-width:60px"></div>
       </div>
       <div class="screen-body" id="conn-list-body">
-        <div style="text-align:center;padding:60px 0"><div class="spinner"></div></div>
+        <div class="page-loader-wrap">
+          <div class="page-loader">
+            <span class="page-loader-dot"></span>
+            <span class="page-loader-dot"></span>
+            <span class="page-loader-dot"></span>
+          </div>
+        </div>
       </div>
     </div>`;
 
