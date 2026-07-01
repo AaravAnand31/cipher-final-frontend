@@ -743,6 +743,13 @@ function _ago(date) {
    REQUESTS
 ══════════════════════════════════════════════════ */
 export async function renderRequests() {
+    // Remove any listener from a previous visit to this screen before
+    // re-adding — prevents stacked duplicate handlers on repeated navigation.
+    if (window._reqWithdrawHandler) {
+        window.removeEventListener('fliqr:request_withdrawn', window._reqWithdrawHandler);
+        window._reqWithdrawHandler = null;
+    }
+
     document.getElementById('app').innerHTML = `
         <div class="screen screen-enter" style="background:var(--bg-secondary)">
             <div class="nav-bar">
@@ -844,6 +851,27 @@ export async function renderRequests() {
                 btn.textContent = action==='accept' ? '✓ Accept' : 'Decline';
             }
         });
+
+        // Live update: if the sender withdraws their request while I'm
+        // looking at this exact screen, remove the card instantly.
+        window._reqWithdrawHandler = (e) => {
+            const card = document.querySelector(`.request-card[data-conn-id="${e.detail.connectionId}"]`);
+            if (!card) return;
+            card.classList.add('card-exit');
+            setTimeout(async () => {
+                card.remove();
+                const remaining = document.querySelectorAll('.request-card').length;
+                const sub = document.getElementById('req-sub');
+                if (sub) sub.textContent = remaining ? `${remaining} pending` : 'All caught up';
+                setState({ pendingCount: remaining });
+                if (!remaining) {
+                    const area = document.getElementById('req-area');
+                    if (area) area.innerHTML = `
+                        <div class="empty-state"><div class="empty-icon">✅</div><div class="empty-title">All caught up!</div></div>`;
+                }
+            }, 280);
+        };
+        window.addEventListener('fliqr:request_withdrawn', window._reqWithdrawHandler);
     } catch (err) {
         console.error(err);
         document.getElementById('req-area').innerHTML = `

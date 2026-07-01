@@ -176,7 +176,7 @@ export async function renderViewProfile() {
       </div>
     </div>`;
 
-  document.getElementById('back-btn').addEventListener('click', back);
+  document.getElementById('back-btn').onclick = back;
 
   // Fetch the full, fresh profile from backend if we have an ID
   let fetchError = null;
@@ -273,9 +273,22 @@ export async function renderViewProfile() {
     </div>`;
 
   bindActionButton(user, userId);
+  _bindProfileLiveUpdates(user, userId);
+
+  // Replace the earlier plain back-button listener with one that also
+  // cleans up live-update listeners, so a stale profile screen doesn't
+  // keep reacting to events after the user has navigated away.
+  document.getElementById('back-btn').onclick = () => {
+    _unbindProfileLiveUpdates();
+    window._currentProfileUserId = null;
+    back();
+  };
 }
 
-/* ── Build the right button(s) for the current connection state ── */
+/* ── Build the right button(s) for the current connection state ──
+   Per spec: pending_sent shows a disabled/outlined "Request Sent"
+   button alongside a separate "Cancel" action, not a single
+   combined tap-target — reduces accidental cancellation. */
 function actionButtonHTML(status) {
   switch (status) {
     case 'accepted':
@@ -286,11 +299,17 @@ function actionButtonHTML(status) {
 
     case 'pending_sent':
       return `
-        <button id="vp-withdraw-btn" class="btn" style="
-          width:100%; background:var(--fill-tertiary); color:var(--label-secondary);
-          font-size:16px; font-weight:600; padding:15px 24px;">
-          ⏳ Request pending · Tap to withdraw
-        </button>`;
+        <div style="display:flex;gap:10px">
+          <button id="vp-sent-btn" class="btn" disabled style="
+            flex:2; background:transparent; color:var(--label-tertiary);
+            border:1.5px solid var(--separator); font-size:15px; font-weight:600;
+            cursor:default; opacity:0.85;">
+            ✓ Request Sent
+          </button>
+          <button id="vp-withdraw-btn" class="btn btn-secondary-fill" style="flex:1;color:var(--red)">
+            Cancel
+          </button>
+        </div>`;
 
     case 'pending_received':
       return `
@@ -300,11 +319,6 @@ function actionButtonHTML(status) {
         </div>`;
 
     case 'rejected':
-      return `
-        <button id="vp-connect-btn" class="btn btn-primary">
-          + Connect
-        </button>`;
-
     default: // 'none'
       return `
         <button id="vp-connect-btn" class="btn btn-primary">
@@ -312,6 +326,10 @@ function actionButtonHTML(status) {
         </button>`;
   }
 }
+
+// Prevents double-submits — e.g. rapid double-tap on Connect/Cancel
+// firing two overlapping API calls before the first one resolves.
+let _actionInFlight = false;
 
 /* ── Wire up whichever button(s) are currently shown ── */
 function bindActionButton(user, userId) {
@@ -336,9 +354,13 @@ function bindActionButton(user, userId) {
 
   // Connect — sends a fresh request
   document.getElementById('vp-connect-btn')?.addEventListener('click', async (e) => {
+    if (_actionInFlight) return;
+    _actionInFlight = true;
+
     const btn = e.currentTarget;
     btn.disabled = true;
     btn.innerHTML = '<span class="spinner"></span> Sending…';
+
     try {
       const res = await fetch(`${API_URL}/connections/request`, {
         method: 'POST', headers: authHeaders(),
@@ -346,6 +368,11 @@ function bindActionButton(user, userId) {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || 'Failed to send request');
+
+      // Cache the new connectionId so Cancel doesn't need to re-fetch it
+      user.connectionId = data.connection?._id || data.connection?.id;
+      user.connectionStatus = 'pending_sent';
+
       toast('Request sent! 🤝', 'success');
       document.getElementById('vp-action-area').innerHTML = actionButtonHTML('pending_sent');
       bindActionButton(user, userId);
@@ -353,56 +380,73 @@ function bindActionButton(user, userId) {
       toast(err.message || 'Could not send request', 'error');
       btn.disabled = false;
       btn.innerHTML = '+ Connect';
+    } finally {
+      _actionInFlight = false;
     }
   });
 
-  // Withdraw — cancels a request I sent by mistake or changed my mind about
+  // Cancel (withdraw) — cancels a request I sent by mistake or changed my mind about
   document.getElementById('vp-withdraw-btn')?.addEventListener('click', async (e) => {
-    const btn = e.currentTarget;
-    const ok = await confirm('Withdraw request?', "They won't be notified, and you can send a new request later.");
-    if (!ok) return;
+    if (_actionInFlight) return;
 
+    const btn = e.currentTarget;
+    const sentBtn = document.getElementById('vp-sent-btn');
+
+    const connId = user.connectionId;
+    if (!connId) {
+      toast('Could not find this request — refreshing…', 'error');
+      return renderViewProfile();
+    }
+
+    _actionInFlight = true;
     btn.disabled = true;
-    btn.innerHTML = '<span class="spinner"></span> Withdrawing…';
+    if (sentBtn) sentBtn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span>';
 
     try {
-      // Find the connectionId — re-fetch the user since we may only have it from earlier state
-      const res = await fetch(`${API_URL}/users/${targetId}`, { headers: authHeaders() });
-      const fresh = await res.json();
-      if (!fresh.connectionId) throw new Error('Could not find this request');
-
       const wRes = await fetch(`${API_URL}/connections/withdraw`, {
         method: 'POST', headers: authHeaders(),
-        body: JSON.stringify({ connectionId: fresh.connectionId }),
+        body: JSON.stringify({ connectionId: connId }),
       });
       const wData = await wRes.json();
-      if (!wRes.ok) throw new Error(wData.message || 'Failed to withdraw');
+      if (!wRes.ok) throw new Error(wData.message || 'Failed to cancel request');
 
-      toast('Request withdrawn', 'success');
+      user.connectionId = null;
+      user.connectionStatus = 'none';
+
+      toast('Request cancelled', 'success');
       document.getElementById('vp-action-area').innerHTML = actionButtonHTML('none');
       bindActionButton(user, userId);
     } catch (err) {
-      toast(err.message || 'Could not withdraw request', 'error');
+      toast(err.message || 'Could not cancel request', 'error');
       btn.disabled = false;
-      btn.innerHTML = '⏳ Request pending · Tap to withdraw';
+      if (sentBtn) sentBtn.disabled = true; // stays disabled, it's not the real action button
+      btn.textContent = 'Cancel';
+    } finally {
+      _actionInFlight = false;
     }
   });
 
   // Accept — for requests sent TO me, viewed from their profile
   document.getElementById('vp-accept-btn')?.addEventListener('click', async (e) => {
+    if (_actionInFlight) return;
+    _actionInFlight = true;
+
     const btn = e.currentTarget;
     btn.disabled = true;
     btn.innerHTML = '<span class="spinner"></span>';
+
     try {
-      const res = await fetch(`${API_URL}/users/${targetId}`, { headers: authHeaders() });
-      const fresh = await res.json();
-      if (!fresh.connectionId) throw new Error('Could not find this request');
+      const connId = user.connectionId || await _fetchConnectionId(targetId);
+      if (!connId) throw new Error('Could not find this request');
 
       const aRes = await fetch(`${API_URL}/connections/accept`, {
         method: 'POST', headers: authHeaders(),
-        body: JSON.stringify({ connectionId: fresh.connectionId }),
+        body: JSON.stringify({ connectionId: connId }),
       });
       if (!aRes.ok) throw new Error('Failed to accept');
+
+      user.connectionStatus = 'accepted';
 
       toast('Connected! 🎉 Open Chats to say hi', 'success');
       document.getElementById('vp-action-area').innerHTML = actionButtonHTML('accepted');
@@ -411,23 +455,30 @@ function bindActionButton(user, userId) {
       toast(err.message || 'Could not accept', 'error');
       btn.disabled = false;
       btn.innerHTML = '✓ Accept request';
+    } finally {
+      _actionInFlight = false;
     }
   });
 
   // Decline — for requests sent TO me, viewed from their profile
   document.getElementById('vp-decline-btn')?.addEventListener('click', async (e) => {
+    if (_actionInFlight) return;
+    _actionInFlight = true;
+
     const btn = e.currentTarget;
     btn.disabled = true;
+
     try {
-      const res = await fetch(`${API_URL}/users/${targetId}`, { headers: authHeaders() });
-      const fresh = await res.json();
-      if (!fresh.connectionId) throw new Error('Could not find this request');
+      const connId = user.connectionId || await _fetchConnectionId(targetId);
+      if (!connId) throw new Error('Could not find this request');
 
       const rRes = await fetch(`${API_URL}/connections/reject`, {
         method: 'POST', headers: authHeaders(),
-        body: JSON.stringify({ connectionId: fresh.connectionId }),
+        body: JSON.stringify({ connectionId: connId }),
       });
       if (!rRes.ok) throw new Error('Failed to decline');
+
+      user.connectionStatus = 'rejected';
 
       toast('Request declined', 'success');
       document.getElementById('vp-action-area').innerHTML = actionButtonHTML('rejected');
@@ -435,8 +486,81 @@ function bindActionButton(user, userId) {
     } catch (err) {
       toast(err.message || 'Could not decline', 'error');
       btn.disabled = false;
+    } finally {
+      _actionInFlight = false;
     }
   });
+}
+
+// Fallback lookup when connectionId wasn't cached on the user object
+// (e.g. profile was opened directly by ID without going through Discover/Search)
+async function _fetchConnectionId(targetId) {
+  try {
+    const res = await fetch(`${API_URL}/users/${targetId}`, { headers: authHeaders() });
+    const fresh = await res.json();
+    return fresh.connectionId || null;
+  } catch {
+    return null;
+  }
+}
+
+/* ── Live updates — react instantly if the OTHER person acts while
+   this profile screen happens to be open, no refresh needed ── */
+let _vpSocketHandlers = null;
+
+function _bindProfileLiveUpdates(user, userId) {
+  const targetId = (user._id || userId)?.toString();
+  window._currentProfileUserId = targetId;
+
+  // Clean up any previous listeners first (e.g. navigating profile → profile)
+  _unbindProfileLiveUpdates();
+
+  const onAccepted = (e) => {
+    if (e.detail.byUserId !== targetId) return;
+    user.connectionStatus = 'accepted';
+    toast(`${user.username || user.name || 'They'} accepted your request! 🎉`, 'success');
+    document.getElementById('vp-action-area').innerHTML = actionButtonHTML('accepted');
+    bindActionButton(user, userId);
+  };
+
+  const onRejected = (e) => {
+    if (e.detail.byUserId !== targetId) return;
+    user.connectionStatus = 'rejected';
+    document.getElementById('vp-action-area').innerHTML = actionButtonHTML('rejected');
+    bindActionButton(user, userId);
+  };
+
+  const onWithdrawn = (e) => {
+    if (e.detail.byUserId !== targetId) return;
+    user.connectionStatus = 'none';
+    user.connectionId = null;
+    document.getElementById('vp-action-area').innerHTML = actionButtonHTML('none');
+    bindActionButton(user, userId);
+  };
+
+  const onNewRequest = (e) => {
+    if (e.detail.fromUserId !== targetId) return;
+    user.connectionStatus = 'pending_received';
+    user.connectionId = e.detail.connectionId;
+    document.getElementById('vp-action-area').innerHTML = actionButtonHTML('pending_received');
+    bindActionButton(user, userId);
+  };
+
+  window.addEventListener('fliqr:request_accepted', onAccepted);
+  window.addEventListener('fliqr:request_rejected', onRejected);
+  window.addEventListener('fliqr:request_withdrawn', onWithdrawn);
+  window.addEventListener('fliqr:new_request', onNewRequest);
+
+  _vpSocketHandlers = { onAccepted, onRejected, onWithdrawn, onNewRequest };
+}
+
+function _unbindProfileLiveUpdates() {
+  if (!_vpSocketHandlers) return;
+  window.removeEventListener('fliqr:request_accepted', _vpSocketHandlers.onAccepted);
+  window.removeEventListener('fliqr:request_rejected', _vpSocketHandlers.onRejected);
+  window.removeEventListener('fliqr:request_withdrawn', _vpSocketHandlers.onWithdrawn);
+  window.removeEventListener('fliqr:new_request', _vpSocketHandlers.onNewRequest);
+  _vpSocketHandlers = null;
 }
 
 function _timeAgoFull(date) {

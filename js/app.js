@@ -66,7 +66,8 @@ export function getMyUserId() {
    The chatroom listens for "new_message" separately.
    This prevents duplicate message rendering.
 ═══════════════════════════════════════════════ */
-window._currentChatId = null;   // set by chatroom when open
+window._currentChatId = null;      // set by chatroom when open
+window._currentProfileUserId = null; // set by renderViewProfile when open
 
 export function initGlobalSocket() {
     const myId = getMyUserId();
@@ -94,11 +95,47 @@ export function initGlobalSocket() {
         _updateBadge('/chats', getState().unreadCount);
     });
 
-    // New connection request
-    window._cipherSocket.on('new_request', () => {
+    /* ═══ CONNECTION LIFECYCLE — live updates, no refresh needed ═══
+       Each handler does two things:
+       1. Update badge counts where relevant
+       2. Dispatch a window CustomEvent so whichever screen is open
+          (View Profile, Requests list) can react without app.js
+          needing to import screen-specific rendering logic. */
+
+    // Someone sent ME a request
+    window._cipherSocket.on('new_request', ({ connectionId, fromUserId }) => {
         const cur = getState().pendingCount || 0;
         setState({ pendingCount: cur + 1 });
         _updateBadge('/requests', getState().pendingCount);
+
+        window.dispatchEvent(new CustomEvent('fliqr:new_request', {
+            detail: { connectionId, fromUserId }
+        }));
+    });
+
+    // Someone I sent a request to accepted it
+    window._cipherSocket.on('request_accepted', ({ connectionId, byUserId }) => {
+        window.dispatchEvent(new CustomEvent('fliqr:request_accepted', {
+            detail: { connectionId, byUserId }
+        }));
+    });
+
+    // Someone I sent a request to rejected it
+    window._cipherSocket.on('request_rejected', ({ connectionId, byUserId }) => {
+        window.dispatchEvent(new CustomEvent('fliqr:request_rejected', {
+            detail: { connectionId, byUserId }
+        }));
+    });
+
+    // Someone withdrew a request they'd sent ME
+    window._cipherSocket.on('request_withdrawn', ({ connectionId, byUserId }) => {
+        const cur = getState().pendingCount || 0;
+        setState({ pendingCount: Math.max(0, cur - 1) });
+        _updateBadge('/requests', getState().pendingCount);
+
+        window.dispatchEvent(new CustomEvent('fliqr:request_withdrawn', {
+            detail: { connectionId, byUserId }
+        }));
     });
 
     // Online/offline status dots (for pages other than chatroom)
