@@ -12,43 +12,41 @@ export function renderLogin() {
   document.getElementById('app').innerHTML = `
     <div class="screen screen-enter auth-page">
 
-      <!-- Campus hero banner with logo overlaid -->
-      <div class="auth-hero-banner">
-        <img src="${CAMPUS_SRC}" class="auth-campus-img" alt="Christ University campus" />
-        <div class="auth-hero-overlay"></div>
-        <div class="auth-hero-content">
-          <img src="${LOGO_SRC}" class="auth-uni-logo" alt="Christ University logo" />
-          <div class="auth-app-name">Fliqr</div>
-          <div class="auth-app-tagline">Christ University · Delhi NCR</div>
-        </div>
+      <!-- Full-screen blurred background image -->
+      <img src="${CAMPUS_SRC}" class="auth-campus-img" alt="" aria-hidden="true" />
+      <div class="auth-bg-overlay"></div>
+
+      <!-- Logo + app name -->
+      <div class="auth-hero-content">
+        <img src="${LOGO_SRC}" class="auth-uni-logo" alt="Christ University" />
+        <div class="auth-app-name">Fliqr</div>
+        <div class="auth-app-tagline">Christ University · Delhi NCR</div>
       </div>
 
-      <!-- Login card -->
-      <div class="auth-card-area">
-        <div class="auth-card">
-          <div class="auth-card-title">Sign in</div>
+      <!-- Glass login card -->
+      <div class="auth-card">
+        <div class="auth-card-title">Sign in</div>
 
-          <div class="auth-field-group">
-            <div class="auth-field">
-              <div class="auth-field-icon">
-                <svg viewBox="0 0 20 20" fill="none"><rect x="2" y="4" width="16" height="12" rx="2" stroke="currentColor" stroke-width="1.6"/><path d="M3 6l6.5 5a1.5 1.5 0 001.8 0L18 6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
-              </div>
-              <input id="loginEmail" type="email" placeholder="your@gmail.com" autocomplete="email" class="auth-input" />
+        <div class="auth-field-group">
+          <div class="auth-field">
+            <div class="auth-field-icon">
+              <svg viewBox="0 0 20 20" fill="none"><rect x="2" y="4" width="16" height="12" rx="2" stroke="currentColor" stroke-width="1.6"/><path d="M3 6l6.5 5a1.5 1.5 0 001.8 0L18 6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
             </div>
-            <div class="auth-field">
-              <div class="auth-field-icon">
-                <svg viewBox="0 0 20 20" fill="none"><rect x="4" y="9" width="12" height="8" rx="1.5" stroke="currentColor" stroke-width="1.6"/><path d="M7 9V6.5a3 3 0 016 0V9" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
-              </div>
-              <input id="loginPassword" type="password" placeholder="••••••••" autocomplete="current-password" class="auth-input" />
+            <input id="loginEmail" type="email" placeholder="your@gmail.com" autocomplete="email" class="auth-input" />
+          </div>
+          <div class="auth-field">
+            <div class="auth-field-icon">
+              <svg viewBox="0 0 20 20" fill="none"><rect x="4" y="9" width="12" height="8" rx="1.5" stroke="currentColor" stroke-width="1.6"/><path d="M7 9V6.5a3 3 0 016 0V9" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
             </div>
+            <input id="loginPassword" type="password" placeholder="••••••••" autocomplete="current-password" class="auth-input" />
           </div>
+        </div>
 
-          <button class="btn btn-primary auth-btn" id="loginBtn">Sign in</button>
+        <button class="btn auth-btn" id="loginBtn">Sign in</button>
 
-          <div class="auth-switch">
-            Don't have an account?
-            <span id="goRegister" class="auth-switch-link">Register</span>
-          </div>
+        <div class="auth-switch">
+          Don't have an account?
+          <span id="goRegister" class="auth-switch-link">Register</span>
         </div>
       </div>
     </div>`;
@@ -66,47 +64,47 @@ export function renderRegister() {
   document.getElementById('app').innerHTML = `
     <div class="screen screen-enter auth-page">
 
-      <div class="auth-hero-banner auth-hero-banner--short">
-        <img src="${CAMPUS_SRC}" class="auth-campus-img" alt="Christ University campus" />
-        <div class="auth-hero-overlay"></div>
-        <div class="auth-hero-content">
-          <img src="${LOGO_SRC}" class="auth-uni-logo" alt="Christ University logo" />
-          <div class="auth-app-name">Fliqr</div>
-          <div class="auth-app-tagline">Create your account</div>
-        </div>
+      <!-- Full-screen blurred background image -->
+      <img src="${CAMPUS_SRC}" class="auth-campus-img" alt="" aria-hidden="true" />
+      <div class="auth-bg-overlay"></div>
+
+      <!-- Logo + app name -->
+      <div class="auth-hero-content">
+        <img src="${LOGO_SRC}" class="auth-uni-logo" alt="Christ University" />
+        <div class="auth-app-name">Fliqr</div>
+        <div class="auth-app-tagline">Create your account</div>
       </div>
 
-      <div class="auth-card-area">
-        <div class="auth-card">
-          <div class="auth-card-title">Create account</div>
+      <!-- Glass register card -->
+      <div class="auth-card">
+        <div class="auth-card-title">Create account</div>
 
-          <div class="auth-field-group">
-            <div class="auth-field">
-              <div class="auth-field-icon">
-                <svg viewBox="0 0 20 20" fill="none"><circle cx="10" cy="7" r="3.5" stroke="currentColor" stroke-width="1.6"/><path d="M3 18c0-3.3 3.1-6 7-6s7 2.7 7 6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
-              </div>
-              <input id="regName" type="text" placeholder="Full name" autocomplete="name" class="auth-input" />
+        <div class="auth-field-group">
+          <div class="auth-field">
+            <div class="auth-field-icon">
+              <svg viewBox="0 0 20 20" fill="none"><circle cx="10" cy="7" r="3.5" stroke="currentColor" stroke-width="1.6"/><path d="M3 18c0-3.3 3.1-6 7-6s7 2.7 7 6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
             </div>
-            <div class="auth-field">
-              <div class="auth-field-icon">
-                <svg viewBox="0 0 20 20" fill="none"><rect x="2" y="4" width="16" height="12" rx="2" stroke="currentColor" stroke-width="1.6"/><path d="M3 6l6.5 5a1.5 1.5 0 001.8 0L18 6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
-              </div>
-              <input id="regEmail" type="email" placeholder="your@gmail.com" autocomplete="email" class="auth-input" />
-            </div>
-            <div class="auth-field" style="border-bottom:none">
-              <div class="auth-field-icon">
-                <svg viewBox="0 0 20 20" fill="none"><rect x="4" y="9" width="12" height="8" rx="1.5" stroke="currentColor" stroke-width="1.6"/><path d="M7 9V6.5a3 3 0 016 0V9" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
-              </div>
-              <input id="regPassword" type="password" placeholder="Min. 6 characters" autocomplete="new-password" class="auth-input" />
-            </div>
+            <input id="regName" type="text" placeholder="Full name" autocomplete="name" class="auth-input" />
           </div>
-
-          <button class="btn btn-primary auth-btn" id="registerBtn">Continue →</button>
-
-          <div class="auth-switch">
-            Already have an account?
-            <span id="goLogin" class="auth-switch-link">Sign in</span>
+          <div class="auth-field">
+            <div class="auth-field-icon">
+              <svg viewBox="0 0 20 20" fill="none"><rect x="2" y="4" width="16" height="12" rx="2" stroke="currentColor" stroke-width="1.6"/><path d="M3 6l6.5 5a1.5 1.5 0 001.8 0L18 6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+            </div>
+            <input id="regEmail" type="email" placeholder="your@gmail.com" autocomplete="email" class="auth-input" />
           </div>
+          <div class="auth-field" style="border-bottom:none">
+            <div class="auth-field-icon">
+              <svg viewBox="0 0 20 20" fill="none"><rect x="4" y="9" width="12" height="8" rx="1.5" stroke="currentColor" stroke-width="1.6"/><path d="M7 9V6.5a3 3 0 016 0V9" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+            </div>
+            <input id="regPassword" type="password" placeholder="Min. 6 characters" autocomplete="new-password" class="auth-input" />
+          </div>
+        </div>
+
+        <button class="btn auth-btn" id="registerBtn">Continue →</button>
+
+        <div class="auth-switch">
+          Already have an account?
+          <span id="goLogin" class="auth-switch-link">Sign in</span>
         </div>
       </div>
     </div>`;

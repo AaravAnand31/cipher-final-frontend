@@ -1895,137 +1895,153 @@ input {
   }
 }
 /* ═══════════════════════════════════════════════════
-   AUTH SCREEN — Campus hero + logo + card
+   AUTH SCREEN — Full-screen blurred campus background
    ═══════════════════════════════════════════════════ */
 
+/* ── Page wrapper: full viewport, background image fills it ── */
 .auth-page {
-  display: flex;
-  flex-direction: column;
-  min-height: 100dvh;
-  background: var(--bg-secondary);
-  overflow-y: auto;
-}
-
-/* ── Campus hero banner ─────────────────────────── */
-.auth-hero-banner {
   position: relative;
+  min-height: 100dvh;
   width: 100%;
-  height: 310px;
-  overflow: hidden;
-  flex-shrink: 0;
-}
-
-.auth-hero-banner--short {
-  height: 260px;
-}
-
-.auth-campus-img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  object-position: center 30%;
-  display: block;
-}
-
-.auth-hero-overlay {
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(
-    to bottom,
-    rgba(0,0,0,0.35) 0%,
-    rgba(0,0,0,0.55) 60%,
-    rgba(0,0,0,0.82) 100%
-  );
-}
-
-.auth-hero-content {
-  position: absolute;
-  inset: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: flex-end;
-  padding-bottom: 28px;
+  justify-content: center;
+  overflow: hidden;
+  padding: 24px 20px 32px;
+  box-sizing: border-box;
+}
+
+/* ── Full-screen campus background image ── */
+.auth-campus-img {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center center;
+  z-index: 0;
+  /* The blur that makes it look modern and clean */
+  filter: blur(6px) brightness(0.55) saturate(1.1);
+  /* Scale up slightly so blurred edges don't show */
+  transform: scale(1.08);
+}
+
+/* ── Dark overlay on top of image for extra depth ── */
+.auth-bg-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  background: linear-gradient(
+    135deg,
+    rgba(0, 0, 0, 0.45) 0%,
+    rgba(0, 30, 10, 0.40) 100%
+  );
+}
+
+/* ── Logo + app name block (sits above card) ── */
+.auth-hero-content {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
   text-align: center;
+  margin-bottom: 20px;
+  animation: authFadeDown 0.5s ease both;
+}
+
+@keyframes authFadeDown {
+  from { opacity: 0; transform: translateY(-12px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 
 /* University logo */
 .auth-uni-logo {
-  width: 180px;
+  width: 160px;
   height: auto;
-  margin-bottom: 12px;
-  filter: drop-shadow(0 2px 8px rgba(0,0,0,0.5));
-  /* Remove the grey/white PNG background by blending with the dark overlay */
+  margin-bottom: 14px;
+  /* Blend out the white/grey PNG background against the dark scene */
   mix-blend-mode: lighten;
-  opacity: 0.95;
+  filter: drop-shadow(0 3px 10px rgba(0,0,0,0.6));
+  opacity: 0.92;
+  animation: authFadeDown 0.5s 0.05s ease both;
 }
 
 /* App name */
 .auth-app-name {
   font-family: var(--font-serif, Georgia, serif);
   font-style: italic;
-  font-size: 36px;
+  font-size: 44px;
   font-weight: 400;
   color: #ffffff;
   letter-spacing: -0.5px;
   line-height: 1;
-  text-shadow: 0 2px 12px rgba(0,0,0,0.5);
+  text-shadow: 0 3px 16px rgba(0,0,0,0.6);
+  animation: authFadeDown 0.5s 0.1s ease both;
 }
 
 .auth-app-tagline {
-  font-size: 13px;
-  color: rgba(255,255,255,0.75);
-  margin-top: 6px;
+  font-size: 13.5px;
+  color: rgba(255,255,255,0.80);
+  margin-top: 8px;
   font-weight: 500;
-  letter-spacing: 0.3px;
+  letter-spacing: 0.4px;
+  text-shadow: 0 1px 6px rgba(0,0,0,0.5);
+  animation: authFadeDown 0.5s 0.15s ease both;
 }
 
-/* ── Card area ──────────────────────────────────── */
-.auth-card-area {
-  flex: 1;
-  display: flex;
-  align-items: flex-start;
-  justify-content: center;
-  padding: 0 20px 40px;
-  margin-top: -24px; /* overlap the bottom of the banner slightly */
-}
-
+/* ── Glassmorphism login card ── */
 .auth-card {
+  position: relative;
+  z-index: 2;
   width: 100%;
-  max-width: 420px;
-  background: var(--bg-card);
-  border-radius: 20px;
-  padding: 28px 24px 24px;
-  box-shadow: 0 8px 40px rgba(0,0,0,0.18);
-  border: 0.5px solid var(--separator);
-  animation: authCardUp 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  max-width: 400px;
+  /* Frosted glass effect */
+  background: rgba(255, 255, 255, 0.13);
+  backdrop-filter: blur(18px) saturate(1.5);
+  -webkit-backdrop-filter: blur(18px) saturate(1.5);
+  border-radius: 22px;
+  padding: 30px 26px 26px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.35),
+    0 1px 0 rgba(255,255,255,0.12) inset;
+  animation: authCardUp 0.5s 0.08s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+/* Dark mode: slightly darker glass */
+html.dark .auth-card {
+  background: rgba(0, 0, 0, 0.28);
+  border-color: rgba(255, 255, 255, 0.12);
 }
 
 @keyframes authCardUp {
-  from { opacity: 0; transform: translateY(20px) scale(0.97); }
+  from { opacity: 0; transform: translateY(22px) scale(0.97); }
   to   { opacity: 1; transform: translateY(0) scale(1); }
 }
 
 .auth-card-title {
   font-size: 22px;
   font-weight: 700;
-  color: var(--label-primary);
+  color: #ffffff;
   margin-bottom: 20px;
   letter-spacing: -0.3px;
 }
 
-/* ── Input fields ───────────────────────────────── */
+/* ── Input field group ── */
 .auth-field-group {
-  background: var(--fill-tertiary);
+  background: rgba(255, 255, 255, 0.12);
   border-radius: 14px;
   overflow: hidden;
   margin-bottom: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
 }
 
 .auth-field {
   display: flex;
   align-items: center;
-  border-bottom: 0.5px solid var(--separator);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
   transition: background 0.15s ease;
 }
 
@@ -2034,7 +2050,7 @@ input {
 }
 
 .auth-field:focus-within {
-  background: var(--fill-secondary);
+  background: rgba(255, 255, 255, 0.10);
 }
 
 .auth-field-icon {
@@ -2042,7 +2058,7 @@ input {
   width: 20px;
   height: 20px;
   margin-left: 16px;
-  color: var(--label-tertiary);
+  color: rgba(255, 255, 255, 0.55);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2050,14 +2066,14 @@ input {
 }
 
 .auth-field:focus-within .auth-field-icon {
-  color: var(--accent);
+  color: var(--accent-light, #30d158);
 }
 
 .auth-input {
   flex: 1;
   padding: 14px 16px;
   font-size: 15.5px;
-  color: var(--label-primary);
+  color: #ffffff;
   background: transparent;
   border: none;
   outline: none;
@@ -2067,65 +2083,60 @@ input {
 }
 
 .auth-input::placeholder {
-  color: var(--label-quaternary, rgba(60,60,67,0.18));
+  color: rgba(255, 255, 255, 0.40);
 }
 
-/* ── Submit button ──────────────────────────────── */
+/* ── Submit button ── */
 .auth-btn {
   width: 100%;
   font-size: 17px;
   font-weight: 600;
   padding: 15px;
-  border-radius: var(--r-full, 50px);
+  border-radius: 50px;
   margin-bottom: 18px;
-  box-shadow: 0 6px 18px rgba(28,107,42,0.28);
-  transition: transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1),
-              opacity 0.15s ease, box-shadow 0.2s ease;
+  background: var(--accent, #1c6b2a);
+  color: #fff;
+  box-shadow:
+    0 6px 22px rgba(28, 107, 42, 0.45),
+    0 1px 0 rgba(255,255,255,0.15) inset;
+  transition:
+    transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1),
+    opacity 0.15s ease,
+    box-shadow 0.2s ease;
 }
 
 .auth-btn:active:not(:disabled) {
   transform: scale(0.97);
+  box-shadow: 0 3px 12px rgba(28, 107, 42, 0.35);
 }
 
 .auth-btn:disabled {
-  opacity: 0.7;
+  opacity: 0.65;
 }
 
-/* ── Switch link ────────────────────────────────── */
+/* ── Switch link ── */
 .auth-switch {
   text-align: center;
   font-size: 14px;
-  color: var(--label-secondary);
+  color: rgba(255, 255, 255, 0.70);
 }
 
 .auth-switch-link {
-  color: var(--accent);
+  color: #4ade80;
   font-weight: 600;
   cursor: pointer;
   margin-left: 4px;
 }
 
 .auth-switch-link:hover {
+  color: #86efac;
   text-decoration: underline;
 }
 
-/* Animate hero content */
-.auth-hero-content > * {
-  animation: authHeroFade 0.5s ease both;
-}
-
-.auth-uni-logo   { animation-delay: 0.05s; }
-.auth-app-name   { animation-delay: 0.12s; }
-.auth-app-tagline { animation-delay: 0.18s; }
-
-@keyframes authHeroFade {
-  from { opacity: 0; transform: translateY(-8px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-
-@media (max-width: 360px) {
-  .auth-hero-banner { height: 260px; }
-  .auth-uni-logo { width: 150px; }
-  .auth-app-name { font-size: 30px; }
-  .auth-card { padding: 22px 18px 20px; }
+/* ── Responsive tweaks ── */
+@media (max-width: 380px) {
+  .auth-uni-logo { width: 130px; }
+  .auth-app-name { font-size: 36px; }
+  .auth-card { padding: 24px 18px 22px; }
+  .auth-card-title { font-size: 19px; }
 }
