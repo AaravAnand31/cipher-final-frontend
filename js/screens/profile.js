@@ -1,6 +1,6 @@
 // js/screens/profile.js
 import {
-  navigate, back, getState, setState, getParams,
+  navigate, back, getState, setState,
   avatarHTML, tagHTML, toast, confirm,
   DUMMY_USER, LOOKING, YEARS, OPEN_TO, DEPTS,
 } from '../helpers.js';
@@ -144,10 +144,10 @@ async function loadProfileStats() {
    Accessed by tapping avatar/name in chatroom header
 ══════════════════════════════════════════════════ */
 export async function renderViewProfile() {
-  const params = getParams() || {};
+  const params = getState().params || {};
   const userId = params.userId;
 
-  // If user data was passed directly (faster), use it as a fallback
+  // If user data was passed directly (faster), use it; otherwise fetch
   let user = params.user || null;
 
   document.getElementById('app').innerHTML = `
@@ -166,33 +166,18 @@ export async function renderViewProfile() {
         <div class="nav-right" style="min-width:60px"></div>
       </div>
       <div class="screen-body" id="vp-body">
-        <div class="page-loader-wrap">
-          <div class="page-loader">
-            <span class="page-loader-dot"></span>
-            <span class="page-loader-dot"></span>
-            <span class="page-loader-dot"></span>
-          </div>
-        </div>
+        <div style="text-align:center;padding:80px 0"><div class="spinner"></div></div>
       </div>
     </div>`;
 
-  document.getElementById('back-btn').onclick = back;
+  document.getElementById('back-btn').addEventListener('click', back);
 
-  // Fetch the full, fresh profile from backend if we have an ID
-  let fetchError = null;
+  // Fetch full user if not passed or stale
   if (userId) {
     try {
       const res = await fetch(`${API_URL}/users/${userId}`, { headers: authHeaders() });
-      if (res.ok) {
-        user = await res.json();
-      } else {
-        fetchError = `Server returned ${res.status}`;
-      }
-    } catch (err) {
-      fetchError = err.message || 'Network error';
-    }
-  } else {
-    fetchError = 'No user ID was provided to this screen';
+      if (res.ok) user = await res.json();
+    } catch (_) {}
   }
 
   if (!user) {
@@ -200,11 +185,9 @@ export async function renderViewProfile() {
       <div class="empty-state">
         <div class="empty-icon">👤</div>
         <div class="empty-title">Could not load profile</div>
-        <div class="empty-body">${fetchError || 'Unknown error'}</div>
       </div>`;
     return;
   }
-
 
   const name = user.username || user.name || 'Student';
   const tags = (user.lookingFor||[]).map(tagHTML).join('');
@@ -267,46 +250,31 @@ export async function renderViewProfile() {
 
     <div style="height:8px;background:var(--bg-secondary)"></div>
 
-    <!-- Action button(s) — driven by real connection status -->
+    <!-- Action area — button shown depends on real connection status -->
     <div style="padding:20px 16px 40px" id="vp-action-area">
-      ${actionButtonHTML(user.connectionStatus)}
+      ${_actionBtnHTML(user.connectionStatus)}
     </div>`;
 
-  bindActionButton(user, userId);
-  _bindProfileLiveUpdates(user, userId);
+  // Store connectionId on the user object so Cancel doesn't need a re-fetch
+  if (user.connectionId) user._connId = user.connectionId;
 
-  // Replace the earlier plain back-button listener with one that also
-  // cleans up live-update listeners, so a stale profile screen doesn't
-  // keep reacting to events after the user has navigated away.
-  document.getElementById('back-btn').onclick = () => {
-    _unbindProfileLiveUpdates();
-    window._currentProfileUserId = null;
-    back();
-  };
+  _bindActionBtn(user, userId);
+  document.getElementById('back-btn').onclick = () => { back(); };
 }
 
-/* ── Build the right button(s) for the current connection state ──
-   Per spec: pending_sent shows a disabled/outlined "Request Sent"
-   button alongside a separate "Cancel" action, not a single
-   combined tap-target — reduces accidental cancellation. */
-function actionButtonHTML(status) {
+function _actionBtnHTML(status) {
   switch (status) {
     case 'accepted':
-      return `
-        <button id="vp-chat-btn" class="btn btn-primary">
-          💬 Open Chat
-        </button>`;
+      return `<button id="vp-chat-btn" class="btn btn-primary">💬 Open Chat</button>`;
 
     case 'pending_sent':
       return `
         <div style="display:flex;gap:10px">
           <button id="vp-sent-btn" class="btn" disabled style="
-            flex:2; background:transparent; color:var(--label-tertiary);
-            border:1.5px solid var(--separator); font-size:15px; font-weight:600;
-            cursor:default; opacity:0.85;">
-            ✓ Request Sent
-          </button>
-          <button id="vp-withdraw-btn" class="btn btn-secondary-fill" style="flex:1;color:var(--red)">
+            flex:2;background:transparent;color:var(--label-tertiary);
+            border:1.5px solid var(--separator);font-size:15px;font-weight:600;
+            cursor:default;">✓ Request Sent</button>
+          <button id="vp-cancel-btn" class="btn btn-secondary-fill" style="flex:1;color:var(--red)">
             Cancel
           </button>
         </div>`;
@@ -315,252 +283,128 @@ function actionButtonHTML(status) {
       return `
         <div style="display:flex;gap:10px">
           <button id="vp-decline-btn" class="btn btn-secondary-fill" style="flex:1">Decline</button>
-          <button id="vp-accept-btn" class="btn btn-primary" style="flex:1;margin-top:0">✓ Accept request</button>
+          <button id="vp-accept-btn" class="btn btn-primary" style="flex:1;margin-top:0">✓ Accept</button>
         </div>`;
 
-    case 'rejected':
-    default: // 'none'
-      return `
-        <button id="vp-connect-btn" class="btn btn-primary">
-          + Connect
-        </button>`;
+    default: // 'none' or 'rejected'
+      return `<button id="vp-connect-btn" class="btn btn-primary">+ Connect</button>`;
   }
 }
 
-// Prevents double-submits — e.g. rapid double-tap on Connect/Cancel
-// firing two overlapping API calls before the first one resolves.
-let _actionInFlight = false;
+let _inFlight = false;
 
-/* ── Wire up whichever button(s) are currently shown ── */
-function bindActionButton(user, userId) {
+function _bindActionBtn(user, userId) {
   const targetId = (user._id || userId)?.toString();
+  const connId   = () => user._connId || user.connectionId;
 
-  // Open Chat — only shown when accepted
+  // Open Chat
   document.getElementById('vp-chat-btn')?.addEventListener('click', async () => {
     try {
-      const res = await fetch(`${API_URL}/connections`, { headers: authHeaders() });
-      if (!res.ok) throw new Error('Failed');
+      const res   = await fetch(`${API_URL}/connections`, { headers: authHeaders() });
       const conns = await res.json();
-      const conn = conns.find(c => c.user?._id?.toString() === targetId);
-      if (conn) {
-        navigate('/chatroom', { chat: { chatId: conn.connectionId, otherUser: conn.user } });
-      } else {
-        toast('You are not connected with this person', 'error');
-      }
-    } catch {
-      toast('Could not open chat', 'error');
-    }
+      const conn  = conns.find(c => c.user?._id?.toString() === targetId);
+      if (conn) navigate('/chatroom', { chat: { chatId: conn.connectionId, otherUser: conn.user } });
+      else toast('You are not connected yet', 'error');
+    } catch { toast('Could not open chat', 'error'); }
   });
 
-  // Connect — sends a fresh request
+  // Connect
   document.getElementById('vp-connect-btn')?.addEventListener('click', async (e) => {
-    if (_actionInFlight) return;
-    _actionInFlight = true;
-
+    if (_inFlight) return; _inFlight = true;
     const btn = e.currentTarget;
-    btn.disabled = true;
-    btn.innerHTML = '<span class="spinner"></span> Sending…';
-
+    btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Sending…';
     try {
-      const res = await fetch(`${API_URL}/connections/request`, {
+      const res  = await fetch(`${API_URL}/connections/request`, {
         method: 'POST', headers: authHeaders(),
         body: JSON.stringify({ toUserId: targetId }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.message || 'Failed to send request');
-
-      // Cache the new connectionId so Cancel doesn't need to re-fetch it
-      user.connectionId = data.connection?._id || data.connection?.id;
-      user.connectionStatus = 'pending_sent';
-
+      if (!res.ok) throw new Error(data.message || 'Failed');
+      user._connId = data.connection?._id || data.connection?.id;
       toast('Request sent! 🤝', 'success');
-      document.getElementById('vp-action-area').innerHTML = actionButtonHTML('pending_sent');
-      bindActionButton(user, userId);
+      document.getElementById('vp-action-area').innerHTML = _actionBtnHTML('pending_sent');
+      _bindActionBtn(user, userId);
     } catch (err) {
       toast(err.message || 'Could not send request', 'error');
-      btn.disabled = false;
-      btn.innerHTML = '+ Connect';
-    } finally {
-      _actionInFlight = false;
-    }
+      btn.disabled = false; btn.textContent = '+ Connect';
+    } finally { _inFlight = false; }
   });
 
-  // Cancel (withdraw) — cancels a request I sent by mistake or changed my mind about
-  document.getElementById('vp-withdraw-btn')?.addEventListener('click', async (e) => {
-    if (_actionInFlight) return;
-
-    const btn = e.currentTarget;
+  // Cancel request
+  document.getElementById('vp-cancel-btn')?.addEventListener('click', async (e) => {
+    if (_inFlight) return; _inFlight = true;
+    const btn     = e.currentTarget;
     const sentBtn = document.getElementById('vp-sent-btn');
-
-    const connId = user.connectionId;
-    if (!connId) {
-      toast('Could not find this request — refreshing…', 'error');
-      return renderViewProfile();
-    }
-
-    _actionInFlight = true;
-    btn.disabled = true;
+    btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>';
     if (sentBtn) sentBtn.disabled = true;
-    btn.innerHTML = '<span class="spinner"></span>';
-
     try {
-      const wRes = await fetch(`${API_URL}/connections/withdraw`, {
+      const cid = connId();
+      if (!cid) throw new Error('Connection ID not found');
+      const res  = await fetch(`${API_URL}/connections/withdraw`, {
         method: 'POST', headers: authHeaders(),
-        body: JSON.stringify({ connectionId: connId }),
+        body: JSON.stringify({ connectionId: cid }),
       });
-      const wData = await wRes.json();
-      if (!wRes.ok) throw new Error(wData.message || 'Failed to cancel request');
-
-      user.connectionId = null;
-      user.connectionStatus = 'none';
-
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Failed');
+      user._connId = null;
       toast('Request cancelled', 'success');
-      document.getElementById('vp-action-area').innerHTML = actionButtonHTML('none');
-      bindActionButton(user, userId);
+      document.getElementById('vp-action-area').innerHTML = _actionBtnHTML('none');
+      _bindActionBtn(user, userId);
     } catch (err) {
       toast(err.message || 'Could not cancel request', 'error');
-      btn.disabled = false;
-      if (sentBtn) sentBtn.disabled = true; // stays disabled, it's not the real action button
-      btn.textContent = 'Cancel';
-    } finally {
-      _actionInFlight = false;
-    }
+      btn.disabled = false; btn.textContent = 'Cancel';
+      if (sentBtn) sentBtn.disabled = true;
+    } finally { _inFlight = false; }
   });
 
-  // Accept — for requests sent TO me, viewed from their profile
+  // Accept
   document.getElementById('vp-accept-btn')?.addEventListener('click', async (e) => {
-    if (_actionInFlight) return;
-    _actionInFlight = true;
-
+    if (_inFlight) return; _inFlight = true;
     const btn = e.currentTarget;
-    btn.disabled = true;
-    btn.innerHTML = '<span class="spinner"></span>';
-
+    btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>';
     try {
-      const connId = user.connectionId || await _fetchConnectionId(targetId);
-      if (!connId) throw new Error('Could not find this request');
-
-      const aRes = await fetch(`${API_URL}/connections/accept`, {
+      // Re-fetch to get connectionId if we don't have it
+      const fresh = await fetch(`${API_URL}/users/${targetId}`, { headers: authHeaders() });
+      const fu    = await fresh.json();
+      const cid   = connId() || fu.connectionId;
+      if (!cid) throw new Error('Connection ID not found');
+      const res = await fetch(`${API_URL}/connections/accept`, {
         method: 'POST', headers: authHeaders(),
-        body: JSON.stringify({ connectionId: connId }),
+        body: JSON.stringify({ connectionId: cid }),
       });
-      if (!aRes.ok) throw new Error('Failed to accept');
-
-      user.connectionStatus = 'accepted';
-
+      if (!res.ok) throw new Error('Failed to accept');
       toast('Connected! 🎉 Open Chats to say hi', 'success');
-      document.getElementById('vp-action-area').innerHTML = actionButtonHTML('accepted');
-      bindActionButton(user, userId);
+      document.getElementById('vp-action-area').innerHTML = _actionBtnHTML('accepted');
+      _bindActionBtn(user, userId);
     } catch (err) {
       toast(err.message || 'Could not accept', 'error');
-      btn.disabled = false;
-      btn.innerHTML = '✓ Accept request';
-    } finally {
-      _actionInFlight = false;
-    }
+      btn.disabled = false; btn.textContent = '✓ Accept';
+    } finally { _inFlight = false; }
   });
 
-  // Decline — for requests sent TO me, viewed from their profile
+  // Decline
   document.getElementById('vp-decline-btn')?.addEventListener('click', async (e) => {
-    if (_actionInFlight) return;
-    _actionInFlight = true;
-
+    if (_inFlight) return; _inFlight = true;
     const btn = e.currentTarget;
     btn.disabled = true;
-
     try {
-      const connId = user.connectionId || await _fetchConnectionId(targetId);
-      if (!connId) throw new Error('Could not find this request');
-
-      const rRes = await fetch(`${API_URL}/connections/reject`, {
+      const fresh = await fetch(`${API_URL}/users/${targetId}`, { headers: authHeaders() });
+      const fu    = await fresh.json();
+      const cid   = connId() || fu.connectionId;
+      if (!cid) throw new Error('Connection ID not found');
+      const res = await fetch(`${API_URL}/connections/reject`, {
         method: 'POST', headers: authHeaders(),
-        body: JSON.stringify({ connectionId: connId }),
+        body: JSON.stringify({ connectionId: cid }),
       });
-      if (!rRes.ok) throw new Error('Failed to decline');
-
-      user.connectionStatus = 'rejected';
-
+      if (!res.ok) throw new Error('Failed to decline');
       toast('Request declined', 'success');
-      document.getElementById('vp-action-area').innerHTML = actionButtonHTML('rejected');
-      bindActionButton(user, userId);
+      document.getElementById('vp-action-area').innerHTML = _actionBtnHTML('rejected');
+      _bindActionBtn(user, userId);
     } catch (err) {
       toast(err.message || 'Could not decline', 'error');
       btn.disabled = false;
-    } finally {
-      _actionInFlight = false;
-    }
+    } finally { _inFlight = false; }
   });
-}
-
-// Fallback lookup when connectionId wasn't cached on the user object
-// (e.g. profile was opened directly by ID without going through Discover/Search)
-async function _fetchConnectionId(targetId) {
-  try {
-    const res = await fetch(`${API_URL}/users/${targetId}`, { headers: authHeaders() });
-    const fresh = await res.json();
-    return fresh.connectionId || null;
-  } catch {
-    return null;
-  }
-}
-
-/* ── Live updates — react instantly if the OTHER person acts while
-   this profile screen happens to be open, no refresh needed ── */
-let _vpSocketHandlers = null;
-
-function _bindProfileLiveUpdates(user, userId) {
-  const targetId = (user._id || userId)?.toString();
-  window._currentProfileUserId = targetId;
-
-  // Clean up any previous listeners first (e.g. navigating profile → profile)
-  _unbindProfileLiveUpdates();
-
-  const onAccepted = (e) => {
-    if (e.detail.byUserId !== targetId) return;
-    user.connectionStatus = 'accepted';
-    toast(`${user.username || user.name || 'They'} accepted your request! 🎉`, 'success');
-    document.getElementById('vp-action-area').innerHTML = actionButtonHTML('accepted');
-    bindActionButton(user, userId);
-  };
-
-  const onRejected = (e) => {
-    if (e.detail.byUserId !== targetId) return;
-    user.connectionStatus = 'rejected';
-    document.getElementById('vp-action-area').innerHTML = actionButtonHTML('rejected');
-    bindActionButton(user, userId);
-  };
-
-  const onWithdrawn = (e) => {
-    if (e.detail.byUserId !== targetId) return;
-    user.connectionStatus = 'none';
-    user.connectionId = null;
-    document.getElementById('vp-action-area').innerHTML = actionButtonHTML('none');
-    bindActionButton(user, userId);
-  };
-
-  const onNewRequest = (e) => {
-    if (e.detail.fromUserId !== targetId) return;
-    user.connectionStatus = 'pending_received';
-    user.connectionId = e.detail.connectionId;
-    document.getElementById('vp-action-area').innerHTML = actionButtonHTML('pending_received');
-    bindActionButton(user, userId);
-  };
-
-  window.addEventListener('fliqr:request_accepted', onAccepted);
-  window.addEventListener('fliqr:request_rejected', onRejected);
-  window.addEventListener('fliqr:request_withdrawn', onWithdrawn);
-  window.addEventListener('fliqr:new_request', onNewRequest);
-
-  _vpSocketHandlers = { onAccepted, onRejected, onWithdrawn, onNewRequest };
-}
-
-function _unbindProfileLiveUpdates() {
-  if (!_vpSocketHandlers) return;
-  window.removeEventListener('fliqr:request_accepted', _vpSocketHandlers.onAccepted);
-  window.removeEventListener('fliqr:request_rejected', _vpSocketHandlers.onRejected);
-  window.removeEventListener('fliqr:request_withdrawn', _vpSocketHandlers.onWithdrawn);
-  window.removeEventListener('fliqr:new_request', _vpSocketHandlers.onNewRequest);
-  _vpSocketHandlers = null;
 }
 
 function _timeAgoFull(date) {
@@ -594,13 +438,7 @@ export async function renderConnections() {
         <div class="nav-right" style="min-width:60px"></div>
       </div>
       <div class="screen-body" id="conn-list-body">
-        <div class="page-loader-wrap">
-          <div class="page-loader">
-            <span class="page-loader-dot"></span>
-            <span class="page-loader-dot"></span>
-            <span class="page-loader-dot"></span>
-          </div>
-        </div>
+        <div style="text-align:center;padding:60px 0"><div class="spinner"></div></div>
       </div>
     </div>`;
 
@@ -686,7 +524,7 @@ export function renderSettings() {
     { icon:'✏️', bg:'#34aadc', label:'Edit profile',  sub:'Update your bio and photos', action:'edit'   },
     { icon:'🔔', bg:'#ff9500', label:'Notifications', sub:'Manage alerts',              action:'notif'  },
     { icon:'🚫', bg:'#ff3b30', label:'Blocked users', sub:'Manage blocked people',      action:'blocked'},
-    { icon:'ℹ️', bg:'#007aff', label:'About Fliqr',  sub:'Version 1.0.0',             action:'about'  },
+    { icon:'ℹ️', bg:'#007aff', label:'About Cipher',  sub:'Version 1.0.0',             action:'about'  },
   ];
 
   document.getElementById('app').innerHTML = `
@@ -739,7 +577,7 @@ export function renderSettings() {
         <button class="btn btn-destructive" id="signout-btn">Sign out</button>
 
         <div style="text-align:center;font-size:12px;color:var(--label-tertiary);margin-top:20px;margin-bottom:8px">
-          Fliqr · Christ University Ghaziabad<br>Made with ♡ for campus life
+          Cipher · Christ University Ghaziabad<br>Made with ♡ for campus life
         </div>
       </div>
     </div>`;
@@ -756,7 +594,7 @@ export function renderSettings() {
     const a = el.dataset.action;
     if (a === 'blocked') navigate('/blocked');
     else if (a === 'edit') navigate('/edit-profile');
-    else if (a === 'about') toast('Fliqr v1.0 · Built for Christ (Deemed to be University) Ghaziabad 🎓');
+    else if (a === 'about') toast('Cipher v1.0 · Built for Christ (Deemed to be University) Ghaziabad 🎓');
     else toast(`Coming soon!`);
   }));
   document.getElementById('signout-btn').addEventListener('click', async () => {
