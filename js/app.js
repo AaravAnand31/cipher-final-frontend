@@ -8,8 +8,8 @@ import { renderSearch }                 from './screens/search.js';
 
 /* ═══════════════════════════════════════════════
    APPLY SAVED THEME BEFORE FIRST RENDER
-   Prevents a light-mode flash on login/register
-   for users who previously chose dark mode.
+   Prevents a light-mode flash for users who
+   previously chose dark mode.
 ═══════════════════════════════════════════════ */
 try {
     const savedDark = JSON.parse(localStorage.getItem('cipher_dark') || 'false');
@@ -66,8 +66,7 @@ export function getMyUserId() {
    The chatroom listens for "new_message" separately.
    This prevents duplicate message rendering.
 ═══════════════════════════════════════════════ */
-window._currentChatId = null;      // set by chatroom when open
-window._currentProfileUserId = null; // set by renderViewProfile when open
+window._currentChatId = null;   // set by chatroom when open
 
 export function initGlobalSocket() {
     const myId = getMyUserId();
@@ -79,6 +78,8 @@ export function initGlobalSocket() {
         return;
     }
 
+    // FIX: was pointed at localhost — broken in production. Must match
+    // the same host used in index.html's socket.io script tag and api.js.
     window._cipherSocket = window.io('https://cipher-425d.onrender.com');
 
     window._cipherSocket.on('connect', () => {
@@ -95,47 +96,11 @@ export function initGlobalSocket() {
         _updateBadge('/chats', getState().unreadCount);
     });
 
-    /* ═══ CONNECTION LIFECYCLE — live updates, no refresh needed ═══
-       Each handler does two things:
-       1. Update badge counts where relevant
-       2. Dispatch a window CustomEvent so whichever screen is open
-          (View Profile, Requests list) can react without app.js
-          needing to import screen-specific rendering logic. */
-
-    // Someone sent ME a request
-    window._cipherSocket.on('new_request', ({ connectionId, fromUserId }) => {
+    // New connection request
+    window._cipherSocket.on('new_request', () => {
         const cur = getState().pendingCount || 0;
         setState({ pendingCount: cur + 1 });
         _updateBadge('/requests', getState().pendingCount);
-
-        window.dispatchEvent(new CustomEvent('fliqr:new_request', {
-            detail: { connectionId, fromUserId }
-        }));
-    });
-
-    // Someone I sent a request to accepted it
-    window._cipherSocket.on('request_accepted', ({ connectionId, byUserId }) => {
-        window.dispatchEvent(new CustomEvent('fliqr:request_accepted', {
-            detail: { connectionId, byUserId }
-        }));
-    });
-
-    // Someone I sent a request to rejected it
-    window._cipherSocket.on('request_rejected', ({ connectionId, byUserId }) => {
-        window.dispatchEvent(new CustomEvent('fliqr:request_rejected', {
-            detail: { connectionId, byUserId }
-        }));
-    });
-
-    // Someone withdrew a request they'd sent ME
-    window._cipherSocket.on('request_withdrawn', ({ connectionId, byUserId }) => {
-        const cur = getState().pendingCount || 0;
-        setState({ pendingCount: Math.max(0, cur - 1) });
-        _updateBadge('/requests', getState().pendingCount);
-
-        window.dispatchEvent(new CustomEvent('fliqr:request_withdrawn', {
-            detail: { connectionId, byUserId }
-        }));
     });
 
     // Online/offline status dots (for pages other than chatroom)
@@ -174,6 +139,30 @@ function _updateOnlineDot(userId, isOnline) {
         dot.style.background = isOnline ? '#34c759' : '#c7c7cc';
     });
 }
+
+
+/* ═══════════════════════════════════════════════
+   PWA INSTALL PROMPT
+   Chrome/Android suppress the native install banner
+   by default and instead fire this event so the app
+   can show its own "Install" button. iOS Safari has
+   no equivalent event — those users install manually
+   via Share → Add to Home Screen, which the Settings
+   screen explains when this event never fires.
+═══════════════════════════════════════════════ */
+window._installPromptEvent = null;
+window._isInstalled = window.matchMedia('(display-mode: standalone)').matches
+    || window.navigator.standalone === true; // iOS-specific flag
+
+window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault(); // stop the automatic mini-infobar
+    window._installPromptEvent = e; // stash it — Settings screen triggers it later
+});
+
+window.addEventListener('appinstalled', () => {
+    window._installPromptEvent = null;
+    window._isInstalled = true;
+});
 
 
 /* ═══════════════════════════════════════════════

@@ -250,160 +250,29 @@ export async function renderViewProfile() {
 
     <div style="height:8px;background:var(--bg-secondary)"></div>
 
-    <!-- Action area — button shown depends on real connection status -->
-    <div style="padding:20px 16px 40px" id="vp-action-area">
-      ${_actionBtnHTML(user.connectionStatus)}
+    <!-- Action button -->
+    <div style="padding:20px 16px 40px">
+      <button id="vp-chat-btn" class="btn btn-primary">
+        💬 Open Chat
+      </button>
     </div>`;
 
-  // Store connectionId on the user object so Cancel doesn't need a re-fetch
-  if (user.connectionId) user._connId = user.connectionId;
-
-  _bindActionBtn(user, userId);
-  document.getElementById('back-btn').onclick = () => { back(); };
-}
-
-function _actionBtnHTML(status) {
-  switch (status) {
-    case 'accepted':
-      return `<button id="vp-chat-btn" class="btn btn-primary">💬 Open Chat</button>`;
-
-    case 'pending_sent':
-      return `
-        <div style="display:flex;gap:10px">
-          <button id="vp-sent-btn" class="btn" disabled style="
-            flex:2;background:transparent;color:var(--label-tertiary);
-            border:1.5px solid var(--separator);font-size:15px;font-weight:600;
-            cursor:default;">✓ Request Sent</button>
-          <button id="vp-cancel-btn" class="btn btn-secondary-fill" style="flex:1;color:var(--red)">
-            Cancel
-          </button>
-        </div>`;
-
-    case 'pending_received':
-      return `
-        <div style="display:flex;gap:10px">
-          <button id="vp-decline-btn" class="btn btn-secondary-fill" style="flex:1">Decline</button>
-          <button id="vp-accept-btn" class="btn btn-primary" style="flex:1;margin-top:0">✓ Accept</button>
-        </div>`;
-
-    default: // 'none' or 'rejected'
-      return `<button id="vp-connect-btn" class="btn btn-primary">+ Connect</button>`;
-  }
-}
-
-let _inFlight = false;
-
-function _bindActionBtn(user, userId) {
-  const targetId = (user._id || userId)?.toString();
-  const connId   = () => user._connId || user.connectionId;
-
-  // Open Chat
-  document.getElementById('vp-chat-btn')?.addEventListener('click', async () => {
+  // Open Chat → go to chatroom with this user
+  document.getElementById('vp-chat-btn').addEventListener('click', async () => {
+    // Find the connection ID for this user
     try {
-      const res   = await fetch(`${API_URL}/connections`, { headers: authHeaders() });
+      const res = await fetch(`${API_URL}/connections`, { headers: authHeaders() });
+      if (!res.ok) throw new Error('Failed');
       const conns = await res.json();
-      const conn  = conns.find(c => c.user?._id?.toString() === targetId);
-      if (conn) navigate('/chatroom', { chat: { chatId: conn.connectionId, otherUser: conn.user } });
-      else toast('You are not connected yet', 'error');
-    } catch { toast('Could not open chat', 'error'); }
-  });
-
-  // Connect
-  document.getElementById('vp-connect-btn')?.addEventListener('click', async (e) => {
-    if (_inFlight) return; _inFlight = true;
-    const btn = e.currentTarget;
-    btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Sending…';
-    try {
-      const res  = await fetch(`${API_URL}/connections/request`, {
-        method: 'POST', headers: authHeaders(),
-        body: JSON.stringify({ toUserId: targetId }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || 'Failed');
-      user._connId = data.connection?._id || data.connection?.id;
-      toast('Request sent! 🤝', 'success');
-      document.getElementById('vp-action-area').innerHTML = _actionBtnHTML('pending_sent');
-      _bindActionBtn(user, userId);
-    } catch (err) {
-      toast(err.message || 'Could not send request', 'error');
-      btn.disabled = false; btn.textContent = '+ Connect';
-    } finally { _inFlight = false; }
-  });
-
-  // Cancel request
-  document.getElementById('vp-cancel-btn')?.addEventListener('click', async (e) => {
-    if (_inFlight) return; _inFlight = true;
-    const btn     = e.currentTarget;
-    const sentBtn = document.getElementById('vp-sent-btn');
-    btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>';
-    if (sentBtn) sentBtn.disabled = true;
-    try {
-      const cid = connId();
-      if (!cid) throw new Error('Connection ID not found');
-      const res  = await fetch(`${API_URL}/connections/withdraw`, {
-        method: 'POST', headers: authHeaders(),
-        body: JSON.stringify({ connectionId: cid }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || 'Failed');
-      user._connId = null;
-      toast('Request cancelled', 'success');
-      document.getElementById('vp-action-area').innerHTML = _actionBtnHTML('none');
-      _bindActionBtn(user, userId);
-    } catch (err) {
-      toast(err.message || 'Could not cancel request', 'error');
-      btn.disabled = false; btn.textContent = 'Cancel';
-      if (sentBtn) sentBtn.disabled = true;
-    } finally { _inFlight = false; }
-  });
-
-  // Accept
-  document.getElementById('vp-accept-btn')?.addEventListener('click', async (e) => {
-    if (_inFlight) return; _inFlight = true;
-    const btn = e.currentTarget;
-    btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>';
-    try {
-      // Re-fetch to get connectionId if we don't have it
-      const fresh = await fetch(`${API_URL}/users/${targetId}`, { headers: authHeaders() });
-      const fu    = await fresh.json();
-      const cid   = connId() || fu.connectionId;
-      if (!cid) throw new Error('Connection ID not found');
-      const res = await fetch(`${API_URL}/connections/accept`, {
-        method: 'POST', headers: authHeaders(),
-        body: JSON.stringify({ connectionId: cid }),
-      });
-      if (!res.ok) throw new Error('Failed to accept');
-      toast('Connected! 🎉 Open Chats to say hi', 'success');
-      document.getElementById('vp-action-area').innerHTML = _actionBtnHTML('accepted');
-      _bindActionBtn(user, userId);
-    } catch (err) {
-      toast(err.message || 'Could not accept', 'error');
-      btn.disabled = false; btn.textContent = '✓ Accept';
-    } finally { _inFlight = false; }
-  });
-
-  // Decline
-  document.getElementById('vp-decline-btn')?.addEventListener('click', async (e) => {
-    if (_inFlight) return; _inFlight = true;
-    const btn = e.currentTarget;
-    btn.disabled = true;
-    try {
-      const fresh = await fetch(`${API_URL}/users/${targetId}`, { headers: authHeaders() });
-      const fu    = await fresh.json();
-      const cid   = connId() || fu.connectionId;
-      if (!cid) throw new Error('Connection ID not found');
-      const res = await fetch(`${API_URL}/connections/reject`, {
-        method: 'POST', headers: authHeaders(),
-        body: JSON.stringify({ connectionId: cid }),
-      });
-      if (!res.ok) throw new Error('Failed to decline');
-      toast('Request declined', 'success');
-      document.getElementById('vp-action-area').innerHTML = _actionBtnHTML('rejected');
-      _bindActionBtn(user, userId);
-    } catch (err) {
-      toast(err.message || 'Could not decline', 'error');
-      btn.disabled = false;
-    } finally { _inFlight = false; }
+      const conn = conns.find(c => c.user?._id?.toString() === (user._id||userId)?.toString());
+      if (conn) {
+        navigate('/chatroom', { chat: { chatId: conn.connectionId, otherUser: conn.user } });
+      } else {
+        toast('You are not connected with this person', 'error');
+      }
+    } catch {
+      toast('Could not open chat', 'error');
+    }
   });
 }
 
@@ -520,11 +389,14 @@ export async function renderConnections() {
 ══════════════════════════════════════════════════ */
 export function renderSettings() {
   const p = getState().currentUser || DUMMY_USER;
+  const canInstall = !!window._installPromptEvent && !window._isInstalled;
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window._isInstalled;
+
   const rows = [
     { icon:'✏️', bg:'#34aadc', label:'Edit profile',  sub:'Update your bio and photos', action:'edit'   },
     { icon:'🔔', bg:'#ff9500', label:'Notifications', sub:'Manage alerts',              action:'notif'  },
     { icon:'🚫', bg:'#ff3b30', label:'Blocked users', sub:'Manage blocked people',      action:'blocked'},
-    { icon:'ℹ️', bg:'#007aff', label:'About Cipher',  sub:'Version 1.0.0',             action:'about'  },
+    { icon:'ℹ️', bg:'#007aff', label:'About Fliqr',  sub:'Version 1.0.0',             action:'about'  },
   ];
 
   document.getElementById('app').innerHTML = `
@@ -554,6 +426,18 @@ export function renderSettings() {
           </div>
         </div>
 
+        ${(canInstall || isIOS) ? `
+        <div class="list-group" style="margin-bottom:20px">
+          <div class="list-row" id="install-app-row" style="border-bottom:none;cursor:pointer">
+            <div class="list-row-icon" style="background:var(--accent)">📲</div>
+            <div class="list-row-text">
+              <div class="list-row-label">Install Fliqr</div>
+              <div class="list-row-sub">${canInstall ? 'Add to your home screen' : 'Tap Share → Add to Home Screen'}</div>
+            </div>
+            <span class="list-row-arrow">›</span>
+          </div>
+        </div>` : ''}
+
         <div class="list-group" style="margin-bottom:20px">
           <div class="list-row" style="border-bottom:none">
             <div class="list-row-icon" style="background:#8e8e93">🌙</div>
@@ -577,12 +461,27 @@ export function renderSettings() {
         <button class="btn btn-destructive" id="signout-btn">Sign out</button>
 
         <div style="text-align:center;font-size:12px;color:var(--label-tertiary);margin-top:20px;margin-bottom:8px">
-          Cipher · Christ University Ghaziabad<br>Made with ♡ for campus life
+          Fliqr · Christ University Delhi NCR<br>Made with ♡ for campus life
         </div>
       </div>
     </div>`;
 
   document.getElementById('back-btn').addEventListener('click', back);
+
+  document.getElementById('install-app-row')?.addEventListener('click', async () => {
+    if (window._installPromptEvent) {
+      window._installPromptEvent.prompt();
+      const { outcome } = await window._installPromptEvent.userChoice;
+      window._installPromptEvent = null;
+      if (outcome === 'accepted') {
+        toast('Fliqr installed! 🎉', 'success');
+        renderSettings();
+      }
+    } else if (isIOS) {
+      toast('Tap the Share icon, then "Add to Home Screen"', 'success');
+    }
+  });
+
   document.getElementById('dark-toggle').addEventListener('click', () => {
     const next = !getState().darkMode;
     setState({ darkMode: next });
@@ -594,7 +493,7 @@ export function renderSettings() {
     const a = el.dataset.action;
     if (a === 'blocked') navigate('/blocked');
     else if (a === 'edit') navigate('/edit-profile');
-    else if (a === 'about') toast('Cipher v1.0 · Built for Christ (Deemed to be University) Ghaziabad 🎓');
+    else if (a === 'about') toast('Fliqr v1.0 · Built for Christ (Deemed to be University) Delhi NCR 🎓');
     else toast(`Coming soon!`);
   }));
   document.getElementById('signout-btn').addEventListener('click', async () => {
