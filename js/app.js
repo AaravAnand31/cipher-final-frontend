@@ -5,7 +5,6 @@ import { renderSetup }                  from './screens/setup.js';
 import { renderDiscover, renderChats, renderChatroom, renderRequests } from './screens/main.js';
 import { renderProfile, renderSettings, renderBlocked, renderEditProfile, renderConnections, renderViewProfile } from './screens/profile.js';
 import { renderSearch }                 from './screens/search.js';
-import { renderEvents, renderEventDetail, renderEventEdit } from './screens/events.js';
 
 /* ═══════════════════════════════════════════════
    ROUTES
@@ -24,9 +23,6 @@ register('/settings',     () => renderSettings());
 register('/blocked',      () => renderBlocked());
 register('/edit-profile', () => renderEditProfile());
 register('/search',       () => renderSearch());
-register('/events',       () => renderEvents());
-register('/event-detail', () => renderEventDetail());
-register('/event-edit',   () => renderEventEdit());
 
 
 /* ═══════════════════════════════════════════════
@@ -71,7 +67,7 @@ export function initGlobalSocket() {
         return;
     }
 
-    window._cipherSocket = window.io('https://cipher-425d.onrender.com');
+    window._cipherSocket = window.io('http://localhost:5500');
 
     window._cipherSocket.on('connect', () => {
         console.log('Global socket connected, announcing user_online:', myId);

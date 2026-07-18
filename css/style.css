@@ -350,27 +350,15 @@ img {
 .tab-bar {
   flex-shrink: 0;
   display: flex;
-  gap: 2px;
-  background: rgba(255, 255, 255, 0.78);
-  backdrop-filter: saturate(200%) blur(24px);
-  -webkit-backdrop-filter: saturate(200%) blur(24px);
-  border: 1px solid rgba(255, 255, 255, 0.5);
-  border-radius: 26px;
-  margin: 0 10px calc(env(safe-area-inset-bottom, 0px) + 10px);
-  padding: 7px 4px;
-  box-shadow:
-    0 8px 28px rgba(0, 0, 0, 0.10),
-    0 2px 8px rgba(0, 0, 0, 0.05),
-    0 1px 0 rgba(255, 255, 255, 0.6) inset;
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: saturate(180%) blur(20px);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  border-top: 0.5px solid var(--separator);
+  padding: 8px 0 calc(env(safe-area-inset-bottom, 0px) + 8px);
 }
 
 html.dark .tab-bar {
-  background: rgba(28, 28, 30, 0.78);
-  border-color: rgba(255, 255, 255, 0.08);
-  box-shadow:
-    0 8px 28px rgba(0, 0, 0, 0.4),
-    0 2px 8px rgba(0, 0, 0, 0.25),
-    0 1px 0 rgba(255, 255, 255, 0.04) inset;
+  background: rgba(28, 28, 30, 0.85);
 }
 
 .tab-item {
@@ -378,36 +366,25 @@ html.dark .tab-bar {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 2px;
-  padding: 6px 0 5px;
-  border-radius: 18px;
+  gap: 3px;
+  padding: 4px 0;
   cursor: pointer;
   position: relative;
   color: var(--gray);
-  transition: color 0.2s ease, background 0.2s ease;
+  transition: color 0.2s;
 }
 
 .tab-item.active {
-  background: var(--accent-bg);
   color: var(--accent);
 }
 
-html.dark .tab-item.active {
-  background: rgba(48, 209, 88, 0.14);
-}
-
-.tab-item:active .tab-icon {
-  transform: scale(0.86);
-}
-
 .tab-icon {
-  width: 26px;
-  height: 26px;
+  width: 28px;
+  height: 28px;
   display: flex;
   align-items: center;
   justify-content: center;
   position: relative;
-  transition: transform 0.15s var(--ease-spring);
 }
 
 .tab-icon svg {
@@ -415,7 +392,7 @@ html.dark .tab-item.active {
 }
 
 .tab-item.active .tab-icon svg {
-  transform: scale(1.08);
+  transform: scale(1.1);
 }
 
 .tab-label {
@@ -970,10 +947,10 @@ html.dark .chip.selected {
 /* ── DISCOVER CARD ───────────────────────────────────── */
 .discover-card {
   background: var(--bg-card);
-  border-radius: 24px;
+  border-radius: var(--r-xl);
   overflow: hidden;
   margin: 0 16px 16px;
-  box-shadow: 0 10px 32px rgba(0,0,0,0.09), 0 2px 6px rgba(0,0,0,0.05);
+  box-shadow: var(--shadow-md);
   animation: cardIn 0.35s var(--ease-spring) both;
 }
 
@@ -1916,274 +1893,4 @@ input {
   #app {
     height: 100dvh;
   }
-}
-/* ═══════════════════════════════════════════════════
-   EVENTS — list cards, detail page, gallery, organizers
-   ═══════════════════════════════════════════════════ */
-
-/* ── Event list card ─────────────────────────────── */
-.event-card {
-  background: var(--bg-card);
-  border-radius: 22px;
-  overflow: hidden;
-  margin-bottom: 16px;
-  box-shadow: 0 8px 26px rgba(0,0,0,0.08), 0 2px 6px rgba(0,0,0,0.04);
-  cursor: pointer;
-  animation: cardIn 0.35s var(--ease-spring) both;
-  transition: transform 0.15s var(--ease-spring);
-}
-
-.event-card:active {
-  transform: scale(0.98);
-}
-
-.event-card-cover {
-  position: relative;
-  height: 150px;
-  background-size: cover;
-  background-position: center;
-  background-color: var(--fill-tertiary);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.event-card-cover-icon {
-  font-size: 40px;
-  opacity: 0.9;
-}
-
-.event-card-cover-gradient {
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(to bottom, rgba(0,0,0,0) 50%, rgba(0,0,0,0.35) 100%);
-}
-
-.event-card-date-badge {
-  position: absolute;
-  top: 12px;
-  left: 12px;
-  background: rgba(255,255,255,0.95);
-  backdrop-filter: blur(8px);
-  border-radius: 12px;
-  padding: 6px 10px 5px;
-  text-align: center;
-  min-width: 44px;
-  box-shadow: 0 2px 10px rgba(0,0,0,0.15);
-}
-
-.event-card-date-badge.event-past {
-  opacity: 0.7;
-}
-
-.event-card-date-day {
-  font-size: 17px;
-  font-weight: 800;
-  color: var(--accent);
-  line-height: 1.1;
-}
-
-.event-card-date-month {
-  font-size: 10px;
-  font-weight: 700;
-  color: var(--label-secondary);
-  text-transform: uppercase;
-  letter-spacing: 0.4px;
-}
-
-.event-card-body {
-  padding: 14px 16px 16px;
-}
-
-.event-card-title {
-  font-size: 17px;
-  font-weight: 700;
-  color: var(--label-primary);
-  letter-spacing: -0.2px;
-  margin-bottom: 6px;
-}
-
-.event-card-meta {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  font-size: 13px;
-  color: var(--label-secondary);
-}
-
-/* ── Event detail page ───────────────────────────── */
-.event-gallery {
-  display: flex;
-  overflow-x: auto;
-  scroll-snap-type: x mandatory;
-  -webkit-overflow-scrolling: touch;
-  height: 260px;
-  scrollbar-width: none;
-}
-
-.event-gallery::-webkit-scrollbar {
-  display: none;
-}
-
-.event-gallery-slide {
-  flex: 0 0 100%;
-  scroll-snap-align: center;
-  background-size: cover;
-  background-position: center;
-  background-color: var(--fill-tertiary);
-}
-
-.event-gallery-empty {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: linear-gradient(135deg, var(--accent-mid), var(--accent));
-}
-
-.event-gallery-dots {
-  display: flex;
-  justify-content: center;
-  gap: 6px;
-  padding: 10px 0;
-  background: var(--bg-card);
-}
-
-.event-gallery-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--fill-primary);
-  transition: background 0.2s ease, transform 0.2s ease;
-}
-
-.event-gallery-dot.active {
-  background: var(--accent);
-  transform: scale(1.3);
-}
-
-.event-detail-title {
-  font-size: 25px;
-  font-weight: 800;
-  color: var(--label-primary);
-  letter-spacing: -0.4px;
-  line-height: 1.25;
-  margin-bottom: 16px;
-}
-
-.event-detail-info-row {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  margin-bottom: 12px;
-}
-
-.event-detail-info-icon {
-  flex-shrink: 0;
-  width: 34px;
-  height: 34px;
-  border-radius: 10px;
-  background: var(--accent-bg);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 15px;
-}
-
-.event-detail-info-main {
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--label-primary);
-}
-
-.event-detail-info-sub {
-  font-size: 13px;
-  color: var(--label-secondary);
-  margin-top: 1px;
-}
-
-.event-detail-section {
-  padding: 18px 20px;
-  border-top: 8px solid var(--bg-secondary);
-}
-
-.event-detail-section-title {
-  font-size: 12.5px;
-  font-weight: 700;
-  color: var(--label-tertiary);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  margin-bottom: 12px;
-}
-
-.event-detail-desc {
-  font-size: 15px;
-  line-height: 1.6;
-  color: var(--label-primary);
-}
-
-/* ── Organizer list ───────────────────────────────── */
-.event-organizer-list {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.event-organizer-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  background: var(--bg-secondary);
-  border-radius: 14px;
-  padding: 12px 14px;
-}
-
-.event-organizer-avatar {
-  flex-shrink: 0;
-  width: 38px;
-  height: 38px;
-  border-radius: 50%;
-  background: var(--accent);
-  color: #fff;
-  font-size: 15px;
-  font-weight: 700;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.event-organizer-name {
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--label-primary);
-}
-
-.event-organizer-role {
-  font-size: 12.5px;
-  color: var(--label-secondary);
-  margin-top: 1px;
-}
-
-.event-organizer-contact-btn {
-  flex-shrink: 0;
-  width: 34px;
-  height: 34px;
-  border-radius: 50%;
-  background: var(--bg-card);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 15px;
-  text-decoration: none;
-  box-shadow: var(--shadow-sm);
-  transition: transform 0.15s var(--ease-spring);
-}
-
-.event-organizer-contact-btn:active {
-  transform: scale(0.9);
-}
-
-.event-organizer-contact-text {
-  flex-shrink: 0;
-  font-size: 12px;
-  color: var(--label-tertiary);
 }

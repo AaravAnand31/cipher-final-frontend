@@ -134,7 +134,6 @@ function dbUserToState(dbUser) {
     photoURL:    dbUser.photoURL   || '',
     coverURL:    dbUser.coverURL   || '',
     profileDone: dbUser.profileDone || false,
-    role:        dbUser.role       || 'student',  // 'organizer' can post events
   };
 }
 

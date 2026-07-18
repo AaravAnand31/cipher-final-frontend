@@ -20,13 +20,6 @@ const SVGs = {
       stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
     <path d="M19 17v6M16 20h6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
   </svg>`,
-  events: `<svg width="26" height="26" viewBox="0 0 26 26" fill="none">
-    <rect x="4" y="5" width="18" height="17" rx="2.5" stroke="currentColor" stroke-width="1.7"/>
-    <path d="M4 10h18" stroke="currentColor" stroke-width="1.7"/>
-    <path d="M8.5 3v4M17.5 3v4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
-    <circle cx="9" cy="14.5" r="1.3" fill="currentColor"/>
-    <circle cx="13" cy="14.5" r="1.3" fill="currentColor"/>
-  </svg>`,
   profile: `<svg width="26" height="26" viewBox="0 0 26 26" fill="none">
     <circle cx="13" cy="9" r="5" stroke="currentColor" stroke-width="1.7"/>
     <path d="M4 22c0-5 4-9 9-9s9 4 9 9" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
@@ -38,7 +31,6 @@ export function tabBarHTML(active) {
 
   const tabs = [
     { id: 'discover',  label: 'Discover', path: '/discover' },
-    { id: 'events',    label: 'Events',   path: '/events'   },
     { id: 'search',    label: 'Search',   path: '/search'   },
     { id: 'chats',     label: 'Chats',    path: '/chats'    },
     { id: 'requests',  label: 'Requests', path: '/requests' },
