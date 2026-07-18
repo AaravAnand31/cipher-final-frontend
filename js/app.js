@@ -7,6 +7,17 @@ import { renderProfile, renderSettings, renderBlocked, renderEditProfile, render
 import { renderSearch }                 from './screens/search.js';
 
 /* ═══════════════════════════════════════════════
+   APPLY SAVED THEME BEFORE FIRST RENDER
+   Prevents a light-mode flash for users who
+   previously chose dark mode.
+═══════════════════════════════════════════════ */
+try {
+    const savedDark = JSON.parse(localStorage.getItem('cipher_dark') || 'false');
+    if (savedDark) document.documentElement.classList.add('dark');
+    setState({ darkMode: savedDark });
+} catch (_) { /* ignore malformed value */ }
+
+/* ═══════════════════════════════════════════════
    ROUTES
 ═══════════════════════════════════════════════ */
 register('/login',        () => renderLogin());
@@ -67,7 +78,9 @@ export function initGlobalSocket() {
         return;
     }
 
-    window._cipherSocket = window.io('http://localhost:5500');
+    // FIX: was pointed at localhost — broken in production. Must match
+    // the same host used in index.html's socket.io script tag and api.js.
+    window._cipherSocket = window.io('https://cipher-425d.onrender.com');
 
     window._cipherSocket.on('connect', () => {
         console.log('Global socket connected, announcing user_online:', myId);
@@ -126,6 +139,30 @@ function _updateOnlineDot(userId, isOnline) {
         dot.style.background = isOnline ? '#34c759' : '#c7c7cc';
     });
 }
+
+
+/* ═══════════════════════════════════════════════
+   PWA INSTALL PROMPT
+   Chrome/Android suppress the native install banner
+   by default and instead fire this event so the app
+   can show its own "Install" button. iOS Safari has
+   no equivalent event — those users install manually
+   via Share → Add to Home Screen, which the Settings
+   screen explains when this event never fires.
+═══════════════════════════════════════════════ */
+window._installPromptEvent = null;
+window._isInstalled = window.matchMedia('(display-mode: standalone)').matches
+    || window.navigator.standalone === true; // iOS-specific flag
+
+window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault(); // stop the automatic mini-infobar
+    window._installPromptEvent = e; // stash it — Settings screen triggers it later
+});
+
+window.addEventListener('appinstalled', () => {
+    window._installPromptEvent = null;
+    window._isInstalled = true;
+});
 
 
 /* ═══════════════════════════════════════════════
