@@ -1,15 +1,17 @@
 // sw.js — Fliqr service worker
 //
-// Strategy:
-// - Cache-first for the static app shell (HTML/CSS/JS/icons/fonts)
-//   so the app opens instantly and works offline for the UI itself.
-// - Network-only for anything hitting the backend (API calls,
-//   socket.io) — this is a realtime chat app, cached API responses
-//   would show stale messages/requests. Never cache those.
-// - Cache version bumps on every deploy so users always get fresh
-//   JS/CSS instead of being stuck on an old cached build.
+// Strategy change (deliberate):
+// The previous version was cache-first for the app shell. That made deploys
+// unreliable — a stale HTML/CSS/JS snapshot could survive a deploy and there
+// was no clean way to tell whether what you were looking at was current.
+//
+// This version is NETWORK-FIRST for the app shell. The network copy always
+// wins when it's reachable, so a deploy lands immediately. The cache is kept
+// purely as an offline fallback. Backend traffic is never intercepted.
+//
+// Bump CACHE_VERSION on any deploy where you want old caches dropped.
 
-const CACHE_VERSION = "fliqr-v1";
+const CACHE_VERSION = "fliqr-v3";
 const BACKEND_HOST = "cipher-425d.onrender.com";
 
 const APP_SHELL = [
@@ -25,77 +27,78 @@ const APP_SHELL = [
   "/js/screens/profile.js",
   "/js/screens/search.js",
   "/js/screens/tabs.js",
+  "/js/screens/events.js",
   "/manifest.json",
   "/icons/icon-192.png",
   "/icons/icon-512.png",
   "/icons/apple-touch-icon.png",
 ];
 
-/* ── INSTALL — pre-cache the app shell ───────────────────── */
+/* ── INSTALL — warm the offline fallback cache ───────────── */
 self.addEventListener("install", (event) => {
   event.waitUntil(
-    caches.open(CACHE_VERSION).then((cache) => {
-      // addAll fails entirely if even one request 404s — use allSettled
-      // via individual add() calls so one missing file doesn't break install
-      return Promise.allSettled(
-        APP_SHELL.map((url) => cache.add(url).catch(() => {}))
-      );
-    })
-  );
-  self.skipWaiting(); // activate the new SW immediately, don't wait for old tabs to close
-});
-
-/* ── ACTIVATE — clean up old cache versions ──────────────── */
-self.addEventListener("activate", (event) => {
-  event.waitUntil(
-    caches.keys().then((keys) =>
-      Promise.all(
-        keys
-          .filter((key) => key !== CACHE_VERSION)
-          .map((key) => caches.delete(key))
-      )
+    caches.open(CACHE_VERSION).then((cache) =>
+      // Individual add() calls so one missing file can't fail the whole install
+      Promise.allSettled(APP_SHELL.map((url) => cache.add(url).catch(() => {})))
     )
   );
-  self.clients.claim(); // take control of any already-open tabs immediately
+  self.skipWaiting();
 });
 
-/* ── FETCH — route requests based on destination ─────────── */
+/* ── ACTIVATE — drop every cache that isn't the current one ── */
+self.addEventListener("activate", (event) => {
+  event.waitUntil(
+    caches
+      .keys()
+      .then((keys) =>
+        Promise.all(
+          keys.filter((k) => k !== CACHE_VERSION).map((k) => caches.delete(k))
+        )
+      )
+      .then(() => self.clients.claim())
+  );
+});
+
+/* ── FETCH ───────────────────────────────────────────────── */
 self.addEventListener("fetch", (event) => {
   const url = new URL(event.request.url);
 
-  // Never intercept the backend — API calls and socket.io must always
-  // go straight to the network. Caching these would show stale chats,
-  // stale connection status, stale everything.
-  if (url.hostname === BACKEND_HOST) {
-    return; // let the browser handle it normally, no service worker involvement
-  }
+  // Never touch the backend. API calls and socket.io must always hit the
+  // network — cached chat or connection data would be actively wrong.
+  if (url.hostname === BACKEND_HOST) return;
+  if (url.pathname.includes("/socket.io/")) return;
 
-  // Never intercept socket.io polling/websocket upgrade requests from any host
-  if (url.pathname.includes("/socket.io/")) {
-    return;
-  }
+  // Only GETs are cacheable.
+  if (event.request.method !== "GET") return;
 
-  // Only handle GET requests for caching — POST/PUT/DELETE always hit network
-  if (event.request.method !== "GET") {
-    return;
-  }
+  // Cross-origin (fonts, CDNs) — let the browser handle it normally.
+  if (url.origin !== self.location.origin) return;
 
-  // Cache-first for the app shell, falling back to network,
-  // and updating the cache in the background when network succeeds
+  // Network-first: always prefer fresh, fall back to cache only when offline.
   event.respondWith(
-    caches.match(event.request).then((cached) => {
-      const networkFetch = fetch(event.request)
-        .then((response) => {
-          if (response && response.status === 200) {
-            const clone = response.clone();
-            caches.open(CACHE_VERSION).then((cache) => cache.put(event.request, clone));
-          }
-          return response;
-        })
-        .catch(() => cached); // offline — fall back to whatever's cached
-
-      // Serve cached immediately if available, otherwise wait on network
-      return cached || networkFetch;
-    })
+    fetch(event.request)
+      .then((response) => {
+        if (response && response.status === 200 && response.type === "basic") {
+          const copy = response.clone();
+          caches.open(CACHE_VERSION).then((cache) => cache.put(event.request, copy));
+        }
+        return response;
+      })
+      .catch(async () => {
+        const cached = await caches.match(event.request);
+        if (cached) return cached;
+        // Offline on a navigation with nothing cached — serve the shell.
+        if (event.request.mode === "navigate") {
+          const shell = await caches.match("/index.html");
+          if (shell) return shell;
+        }
+        return Response.error();
+      })
   );
+});
+
+/* Lets the page trigger an immediate update via
+   registration.waiting.postMessage({type:'SKIP_WAITING'}) */
+self.addEventListener("message", (event) => {
+  if (event.data && event.data.type === "SKIP_WAITING") self.skipWaiting();
 });

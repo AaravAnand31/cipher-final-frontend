@@ -5,6 +5,7 @@ import { renderSetup }                  from './screens/setup.js';
 import { renderDiscover, renderChats, renderChatroom, renderRequests } from './screens/main.js';
 import { renderProfile, renderSettings, renderBlocked, renderEditProfile, renderConnections, renderViewProfile } from './screens/profile.js';
 import { renderSearch }                 from './screens/search.js';
+import { renderEvents, renderEventDetail, renderEventForm } from './screens/events.js';
 
 /* ═══════════════════════════════════════════════
    APPLY SAVED THEME BEFORE FIRST RENDER
@@ -34,6 +35,9 @@ register('/settings',     () => renderSettings());
 register('/blocked',      () => renderBlocked());
 register('/edit-profile', () => renderEditProfile());
 register('/search',       () => renderSearch());
+register('/events',       () => renderEvents());
+register('/event-detail', () => renderEventDetail());
+register('/event-form',   () => renderEventForm());
 
 
 /* ═══════════════════════════════════════════════

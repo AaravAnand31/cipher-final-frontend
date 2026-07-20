@@ -24,6 +24,11 @@ const SVGs = {
     <circle cx="13" cy="9" r="5" stroke="currentColor" stroke-width="1.7"/>
     <path d="M4 22c0-5 4-9 9-9s9 4 9 9" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
   </svg>`,
+  events: `<svg width="26" height="26" viewBox="0 0 26 26" fill="none">
+    <rect x="3.5" y="5.5" width="19" height="17" rx="3" stroke="currentColor" stroke-width="1.7"/>
+    <path d="M3.5 10.5h19M8.5 3v5M17.5 3v5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+    <circle cx="13" cy="16" r="1.9" fill="currentColor"/>
+  </svg>`,
 };
 
 export function tabBarHTML(active) {
@@ -32,6 +37,7 @@ export function tabBarHTML(active) {
   const tabs = [
     { id: 'discover',  label: 'Discover', path: '/discover' },
     { id: 'search',    label: 'Search',   path: '/search'   },
+    { id: 'events',    label: 'Events',   path: '/events'   },
     { id: 'chats',     label: 'Chats',    path: '/chats'    },
     { id: 'requests',  label: 'Requests', path: '/requests' },
     { id: 'profile',   label: 'Profile',  path: '/profile'  },
