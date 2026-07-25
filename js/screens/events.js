@@ -118,27 +118,42 @@ const IC = {
 };
 
 /* ══════════════════════════════════════════════════
-   ROLE
-   Cached for the session so we don't re-ask on every
-   navigation; only organizers see write controls.
-══════════════════════════════════════════════════ */
-let _myRole = null;
+   PERMISSIONS
 
-async function getMyRole() {
-    if (_myRole) return _myRole;
+   Whether the current user may post events is decided by
+   the BACKEND (the canPostEvents flag on /auth/me), not by
+   the frontend. That way the posting rule lives in exactly
+   one place — flipping OPEN_POSTING on the server flips the
+   button here with no frontend change.
+
+   We still keep the raw role around, only for wording the
+   empty state ("post the first one" vs "your event leads").
+   Both are cached for the session so we don't re-ask on
+   every navigation.
+══════════════════════════════════════════════════ */
+let _perm = null;   // { role: string, canPost: boolean }
+
+async function loadPerm() {
+    if (_perm) return _perm;
     try {
         const res = await fetch(`${API_URL}/auth/me`, { headers: authHeaders() });
-        if (!res.ok) return 'student';
+        if (!res.ok) return { role: 'student', canPost: false };
         const me = await res.json();
-        _myRole = me?.role === 'organizer' ? 'organizer' : 'student';
-        return _myRole;
+        _perm = {
+            role: me?.role === 'organizer' ? 'organizer' : 'student',
+            // Trust the backend flag; fall back to the role only if an older
+            // backend (without the flag) is still deployed.
+            canPost: me?.canPostEvents === true
+                || (me?.canPostEvents === undefined && me?.role === 'organizer'),
+        };
+        return _perm;
     } catch (_) {
-        return 'student';
+        return { role: 'student', canPost: false };
     }
 }
 
-function isOrganizer() {
-    return _myRole === 'organizer';
+function canPost() {
+    return !!(_perm && _perm.canPost);
 }
 
 /* ══════════════════════════════════════════════════
@@ -178,9 +193,9 @@ async function loadEvents() {
     const wrap = document.getElementById('ev-list');
     if (!wrap) return;
 
-    // Role and events load together — the FAB depends on the role result.
-    const [role, result] = await Promise.all([
-        getMyRole(),
+    // Permissions and events load together — the FAB depends on canPost.
+    const [perm, result] = await Promise.all([
+        loadPerm(),
         fetch(`${API_URL}/events`, { headers: authHeaders() })
             .then(async res => {
                 if (res.status === 401) return { auth: false };
@@ -216,11 +231,11 @@ async function loadEvents() {
         wrap.innerHTML = emptyState(
             '🎪',
             'No events yet',
-            role === 'organizer'
+            perm.canPost
                 ? 'Post the first one so the campus knows what\'s coming up.'
                 : 'When your event leads post something, it shows up here first.'
         );
-        if (role === 'organizer') mountFab();
+        if (perm.canPost) mountFab();
         return;
     }
 
@@ -243,7 +258,7 @@ async function loadEvents() {
         if (card) navigate('/event-detail', { eventId: card.dataset.evId });
     });
 
-    if (role === 'organizer') mountFab();
+    if (perm.canPost) mountFab();
 }
 
 function emptyState(icon, title, body, extra = '') {
@@ -379,7 +394,7 @@ async function loadEventDetail(eventId) {
     const host = document.getElementById('ev-detail');
     if (!host) return;   // navigated away mid-load
 
-    await getMyRole();
+    await loadPerm();
 
     const images = Array.isArray(ev.coverImages) ? ev.coverImages.filter(Boolean) : [];
     const organizers = Array.isArray(ev.organizers) ? ev.organizers : [];
@@ -445,7 +460,7 @@ async function loadEventDetail(eventId) {
         backBtn.addEventListener('click', () => navigate('/events'));
         screen.appendChild(backBtn);
 
-        if (isOrganizer()) {
+        if (canPost()) {
             const admin = document.createElement('div');
             admin.className = 'ev-admin-float';
             admin.innerHTML = `
@@ -547,15 +562,15 @@ async function deleteEvent(eventId, title) {
 }
 
 /* ══════════════════════════════════════════════════
-   COMPOSER  (organizers only)
+   COMPOSER
 ══════════════════════════════════════════════════ */
 let _draftImages = [];
 let _draftOrganizers = [];
 
 export async function renderEventForm() {
-    const role = await getMyRole();
-    if (role !== 'organizer') {
-        toast('Only event organisers can post events', 'error');
+    const perm = await loadPerm();
+    if (!perm.canPost) {
+        toast('You don\'t have permission to post events', 'error');
         navigate('/events');
         return;
     }
